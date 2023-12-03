@@ -20,4 +20,4 @@ SwarmBuilder::new()
 
 # How it works
 
-The plugin will automatically ViaProxy and saves it to `~/.minecraft/azalea-viaversion`. It then starts up ViaProxy in the background and changes the connection address for the bots to the proxy.
+The plugin will automatically download ViaProxy to `~/.minecraft/azalea-viaversion`. It then starts up ViaProxy in the background and changes the connection address for the bots to the proxy.
