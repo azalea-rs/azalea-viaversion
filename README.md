@@ -9,8 +9,6 @@ To use this plugin, simply add the dependency with `cargo add azalea_viaversion 
 Note that this plugin currently does not support `ClientBuilder` due to limitations in how `ClientBuilder` currently works.
 Also, this plugin depends on the Git (unstable) version of Azalea, so make sure you're using that.
 
-The plugin will automatically download the latest version of ViaProxy and saves it at `~/.minecraft/azalea-viaversion`.
-
 ```rs
 SwarmBuilder::new()
     .set_handler(handle)
@@ -19,3 +17,7 @@ SwarmBuilder::new()
     .start("localhost")
     .await;
 ```
+
+# How it works
+
+The plugin will automatically ViaProxy and saves it to `~/.minecraft/azalea-viaversion`. It then starts up ViaProxy in the background and changes the connection address for the bots to the proxy.
