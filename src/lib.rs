@@ -65,16 +65,16 @@ impl ViaVersionPlugin {
             Ok(major_version) => major_version,
             Err(_) => {
                 panic!(
-                "Sorry we don't support Java versions past Java 4294967296 (version string: '{}')",
-                java_version,
+                "Sorry we don't support Java versions past Java 4294967296, try downloading a sane version of java from {} (version string: '{}')",
+                JAVA_DOWNLOAD_URL, java_version,
             );
             }
         };
 
         if java_major_version < 17 {
             panic!(
-                "Java version 17 or greater is required, found {} (version string: '{}')",
-                java_major_version, java_version
+                "Java version 17 or greater is required, either change your java home or install a newer java version from {}\nfound {} (version string: '{}')",
+                JAVA_DOWNLOAD_URL, java_major_version, java_version
             );
         }
 
