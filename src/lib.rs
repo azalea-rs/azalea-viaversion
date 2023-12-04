@@ -33,7 +33,7 @@ use tracing::{error, info};
 const VIAPROXY_DOWNLOAD_URL: &str =
     "https://github.com/ViaVersion/ViaProxy/releases/download/v3.0.22/ViaProxy-3.0.22.jar";
 
-const JAVA_DOWNLOAD_URL: &str = "some url";
+const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
 
 #[derive(Clone, Debug, Resource)]
 pub struct ViaVersionPlugin {
