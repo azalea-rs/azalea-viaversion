@@ -33,6 +33,8 @@ use tracing::{error, info};
 const VIAPROXY_DOWNLOAD_URL: &str =
     "https://github.com/ViaVersion/ViaProxy/releases/download/v3.0.22/ViaProxy-3.0.22.jar";
 
+const JAVA_DOWNLOAD_URL: &str = "some url";
+
 #[derive(Clone, Debug, Resource)]
 pub struct ViaVersionPlugin {
     bind_port: u16,
@@ -42,6 +44,40 @@ pub struct ViaVersionPlugin {
 
 impl ViaVersionPlugin {
     pub async fn start(version: &str) -> Self {
+        let java_version = std::process::Command::new("java").arg("--version").output();
+        let java_version = match java_version {
+            Ok(java_version) => {
+                let java_version = String::from_utf8(java_version.stdout).unwrap();
+                let version_regex = regex::Regex::new(r"\d{1,}\.\d{1,}\.\d{1,}").unwrap();
+                let Some(captures) = version_regex.captures(&java_version) else {
+                    panic!(
+                        "Could not parse java version from string '{}'",
+                        java_version
+                    );
+                };
+                captures[0].to_string()
+            }
+            Err(_) => {
+                panic!("Java installation not found! You can download Java from {JAVA_DOWNLOAD_URL} or your system's package manager");
+            }
+        };
+        let java_major_version = match java_version.split('.').next().unwrap().parse::<u32>() {
+            Ok(major_version) => major_version,
+            Err(_) => {
+                panic!(
+                "Sorry we don't support Java versions past Java 4294967296 (version string: '{}')",
+                java_version,
+            );
+            }
+        };
+
+        if java_major_version < 17 {
+            panic!(
+                "Java version 17 or greater is required, found {} (version string: '{}')",
+                java_major_version, java_version
+            );
+        }
+
         let minecraft_dir = get_mc_dir::minecraft_dir().unwrap_or_else(|| {
             panic!(
                 "No {} environment variable found",
