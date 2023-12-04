@@ -33,6 +33,8 @@ use tracing::{error, info};
 const VIAPROXY_DOWNLOAD_URL: &str =
     "https://github.com/ViaVersion/ViaProxy/releases/download/v3.0.22/ViaProxy-3.0.22.jar";
 
+const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
+
 #[derive(Clone, Debug, Resource)]
 pub struct ViaVersionPlugin {
     bind_port: u16,
@@ -42,6 +44,8 @@ pub struct ViaVersionPlugin {
 
 impl ViaVersionPlugin {
     pub async fn start(version: &str) -> Self {
+        verify_java_version();
+
         let minecraft_dir = get_mc_dir::minecraft_dir().unwrap_or_else(|| {
             panic!(
                 "No {} environment variable found",
@@ -69,10 +73,7 @@ impl ViaVersionPlugin {
         }
 
         // pick a port to run viaproxy on
-
         let bind_port = portpicker::pick_unused_port().expect("No ports available");
-
-        // java -jar ViaProxy-whateverversion.jar --bind_port 25568 --target_ip 127.0.0.1 --target_port 25565 --version b1.7-b1.7.3
 
         let mut child = tokio::process::Command::new("java")
             .current_dir(&download_directory)
@@ -81,14 +82,14 @@ impl ViaVersionPlugin {
             .arg("--bind_port")
             .arg(bind_port.to_string())
             .arg("--internal_srv_mode")
-            // these don't matter because we have srv mode
+            .arg("--version")
+            .arg(version)
+            .arg("--openauthmod_auth")
+            // target_ip and target port don't matter since we're using internal_srv_mode
             .arg("--target_ip")
             .arg("127.0.0.1")
             .arg("--target_port")
             .arg("0")
-            .arg("--version")
-            .arg(version)
-            .arg("--openauthmod_auth")
             .stdout(std::process::Stdio::piped())
             .spawn()
             .expect("Failed to start ViaProxy");
@@ -119,6 +120,43 @@ impl ViaVersionPlugin {
             version: version.to_string(),
             auth_request_tx,
         }
+    }
+}
+
+fn verify_java_version() {
+    let java_version = std::process::Command::new("java").arg("--version").output();
+    let java_version = match java_version {
+        Ok(java_version) => {
+            let java_version = String::from_utf8(java_version.stdout).unwrap();
+            let version_regex = regex::Regex::new(r"\d{1,}\.\d{1,}\.\d{1,}").unwrap();
+            let Some(captures) = version_regex.captures(&java_version) else {
+                panic!("Could not parse java version from string '{java_version}'");
+            };
+            captures[0].to_string()
+        }
+        Err(_) => {
+            panic!(
+                "Java installation not found! You can download Java from {JAVA_DOWNLOAD_URL} or \
+                your system's package manager"
+            );
+        }
+    };
+    let java_major_version = match java_version.split('.').next().unwrap().parse::<u32>() {
+        Ok(major_version) => major_version,
+        Err(_) => {
+            panic!(
+                "Java versions past Java 4294967296 aren't supported, try downloading a sane \
+                version of Java from {JAVA_DOWNLOAD_URL} (version string: '{java_version}')"
+            );
+        }
+    };
+
+    if java_major_version < 17 {
+        panic!(
+            "Java version 17 or greater is required, either change your Java home or install a \
+            newer Java version from {JAVA_DOWNLOAD_URL}\nfound {java_major_version} (version \
+            string: '{java_version}')"
+        );
     }
 }
 
@@ -155,8 +193,7 @@ async fn handle_auth_requests_loop(mut rx: mpsc::UnboundedReceiver<AuthRequest>)
                 .await
             } {
                 if attempts >= 2 {
-                    // if this is the second attempt and we failed
-                    // both times, give up
+                    // if this is the second attempt and we failed both times, give up
                     break Err(e.into());
                 }
                 if matches!(
@@ -164,8 +201,7 @@ async fn handle_auth_requests_loop(mut rx: mpsc::UnboundedReceiver<AuthRequest>)
                     ClientSessionServerError::InvalidSession
                         | ClientSessionServerError::ForbiddenOperation
                 ) {
-                    // uh oh, we got an invalid session and have
-                    // to reauthenticate now
+                    // uh oh, we got an invalid session and have to reauthenticate now
                     if let Err(e) = account.refresh().await {
                         error!("Failed to refresh account: {e:?}");
                         continue;

@@ -490,6 +490,7 @@ dependencies = [
  "futures-util",
  "indicatif",
  "portpicker",
+ "regex",
  "reqwest",
  "tokio",
  "tracing",
