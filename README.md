@@ -6,8 +6,7 @@ Add multiversion support to your [Azalea](https://github.com/mat-1/azalea) bots,
 
 To use this plugin, simply add the dependency with `cargo add azalea-viaversion --git=https://github.com/azalea-rs/azalea-viaversion` and then add `.add_plugins(azalea_viaversion::ViaVersionPlugin::start("version name here").await)` to your `SwarmBuilder`.
 
-Note that this plugin currently does not support `ClientBuilder` due to limitations in how `ClientBuilder` currently works.
-Also, this plugin depends on the Git (unstable) version of Azalea, so make sure you're using that.
+Note that this plugin depends on the Git (unstable) version of Azalea, so make sure you're using that.
 
 ```rs
 SwarmBuilder::new()
