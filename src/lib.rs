@@ -4,6 +4,7 @@ mod get_mc_dir;
 use std::{
     io::Cursor,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::PathBuf,
 };
 
 use azalea::{
@@ -31,7 +32,7 @@ use tokio::{
 use tracing::{error, info};
 
 const VIAPROXY_DOWNLOAD_URL: &str =
-    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.0.22/ViaProxy-3.0.22.jar";
+    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.0.23/ViaProxy-3.0.23.jar";
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
 
@@ -42,24 +43,31 @@ pub struct ViaVersionPlugin {
     auth_request_tx: mpsc::UnboundedSender<AuthRequest>,
 }
 
+/// Download viaproxy and return the path to the downloaded jar file.
+async fn download_viaproxy() -> PathBuf {
+    let minecraft_dir = get_mc_dir::minecraft_dir().unwrap_or_else(|| {
+        panic!(
+            "No {} environment variable found",
+            get_mc_dir::home_env_var()
+        )
+    });
+
+    let download_directory = minecraft_dir.join("azalea-viaversion");
+    let download_filename = VIAPROXY_DOWNLOAD_URL.split('/').last().unwrap();
+    let download_path = download_directory.join(download_filename);
+
+    if !download_directory.exists() {
+        std::fs::create_dir_all(&download_directory).unwrap();
+    }
+
+    download_path
+}
+
 impl ViaVersionPlugin {
     pub async fn start(version: &str) -> Self {
         verify_java_version();
 
-        let minecraft_dir = get_mc_dir::minecraft_dir().unwrap_or_else(|| {
-            panic!(
-                "No {} environment variable found",
-                get_mc_dir::home_env_var()
-            )
-        });
-
-        let download_directory = minecraft_dir.join("azalea-viaversion");
-        let download_filename = VIAPROXY_DOWNLOAD_URL.split('/').last().unwrap();
-        let download_path = download_directory.join(download_filename);
-
-        if !download_directory.exists() {
-            std::fs::create_dir_all(&download_directory).unwrap();
-        }
+        let download_path = download_viaproxy().await;
 
         if !download_path.exists() {
             let client = reqwest::Client::new();
@@ -71,6 +79,8 @@ impl ViaVersionPlugin {
             .await
             .unwrap();
         }
+
+        let download_directory = download_path.parent().unwrap();
 
         // pick a port to run viaproxy on
         let bind_port = portpicker::pick_unused_port().expect("No ports available");
