@@ -32,7 +32,7 @@ use tokio::{
 use tracing::{error, info};
 
 const VIAPROXY_DOWNLOAD_URL: &str =
-    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.0.23/ViaProxy-3.0.23.jar";
+    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.2.1/ViaProxy-3.2.1.jar";
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
 
@@ -340,7 +340,7 @@ fn handle_join_task(
                     data: Some(vec![if result.is_ok() { 1 } else { 0 }].into()),
                 }
                 .get(),
-            })
+            });
         }
     }
 }
