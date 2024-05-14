@@ -32,7 +32,7 @@ use tokio::{
 use tracing::{error, info};
 
 const VIAPROXY_DOWNLOAD_URL: &str =
-    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.2.1/ViaProxy-3.2.1.jar";
+    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.2.2/ViaProxy-3.2.2.jar";
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
 
@@ -89,17 +89,18 @@ impl ViaVersionPlugin {
             .current_dir(&download_directory)
             .arg("-jar")
             .arg(download_path)
-            .arg("--bind_port")
-            .arg(bind_port.to_string())
-            .arg("--internal_srv_mode")
-            .arg("--version")
+            .arg("cli")
+            .arg("--bind-address")
+            .arg(format!("127.0.0.1:{bind_port}"))
+            .arg("--wildcard-domain-handling")
+            .arg("INTERNAL")
+            .arg("--target-version")
             .arg(version)
-            .arg("--openauthmod_auth")
-            // target_ip and target port don't matter since we're using internal_srv_mode
-            .arg("--target_ip")
-            .arg("127.0.0.1")
-            .arg("--target_port")
-            .arg("0")
+            .arg("--auth-method")
+            .arg("OPENAUTHMOD")
+            // target address doesn't matter since we're using wildcard domain handling
+            .arg("--target-address")
+            .arg("127.0.0.1:0")
             .stdout(std::process::Stdio::piped())
             .spawn()
             .expect("Failed to start ViaProxy");
@@ -248,7 +249,7 @@ fn change_connection_address(swarm: Res<Swarm>, plugin: Res<ViaVersionPlugin>) {
     *swarm.address.write() = ServerAddress {
         // ip\7port\7version\7mppass
         host: format!(
-            "{ip}\x07{port}\x07{version}\x07{mppass}",
+            "{ip}:{port}\x07{version}\x07{mppass}",
             ip = target_address.host,
             port = target_address.port,
             version = plugin.version,
