@@ -32,7 +32,7 @@ use tokio::{
 use tracing::{error, info};
 
 const VIAPROXY_DOWNLOAD_URL: &str =
-    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.2.2/ViaProxy-3.2.2.jar";
+    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.3.0/ViaProxy-3.3.0.jar";
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
 
