@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.82"
-azalea = { git = "https://github.com/azalea-rs/azalea" }
+azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
 futures-util = "0.3.30"
 indicatif = "0.17.8"
 portpicker = "0.1.1"
