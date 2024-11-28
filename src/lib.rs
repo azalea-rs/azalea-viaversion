@@ -1,5 +1,4 @@
 mod download;
-mod get_mc_dir;
 
 use std::{
     io::Cursor,
@@ -10,16 +9,12 @@ use std::{
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup, Update},
     auth::sessionserver::ClientSessionServerError,
-    buf::McBufReadable,
+    buf::AzaleaRead,
     ecs::prelude::*,
-    packet_handling::login::IgnoreQueryIds,
-    packet_handling::login::{self, LoginPacketEvent, SendLoginPacketEvent},
+    packet_handling::login::{self, IgnoreQueryIds, LoginPacketEvent, SendLoginPacketEvent},
     prelude::*,
     protocol::{
-        packets::login::{
-            serverbound_custom_query_answer_packet::ServerboundCustomQueryAnswerPacket,
-            ClientboundLoginPacket,
-        },
+        packets::login::{ClientboundLoginPacket, ServerboundCustomQueryAnswer},
         ServerAddress,
     },
     swarm::Swarm,
@@ -32,7 +27,7 @@ use tokio::{
 use tracing::{error, info};
 
 const VIAPROXY_DOWNLOAD_URL: &str =
-    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.3.0/ViaProxy-3.3.0.jar";
+    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.3.5/ViaProxy-3.3.5.jar";
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
 
@@ -45,10 +40,10 @@ pub struct ViaVersionPlugin {
 
 /// Download viaproxy and return the path to the downloaded jar file.
 async fn download_viaproxy() -> PathBuf {
-    let minecraft_dir = get_mc_dir::minecraft_dir().unwrap_or_else(|| {
+    let minecraft_dir = minecraft_folder_path::minecraft_dir().unwrap_or_else(|| {
         panic!(
             "No {} environment variable found",
-            get_mc_dir::home_env_var()
+            minecraft_folder_path::home_env_var()
         )
     });
 
@@ -86,7 +81,7 @@ impl ViaVersionPlugin {
         let bind_port = portpicker::pick_unused_port().expect("No ports available");
 
         let mut child = tokio::process::Command::new("java")
-            .current_dir(&download_directory)
+            .current_dir(download_directory)
             .arg("-jar")
             .arg(download_path)
             .arg("cli")
@@ -205,7 +200,7 @@ async fn handle_auth_requests_loop(mut rx: mpsc::UnboundedReceiver<AuthRequest>)
             } {
                 if attempts >= 2 {
                     // if this is the second attempt and we failed both times, give up
-                    break Err(e.into());
+                    break Err(e);
                 }
                 if matches!(
                     e,
@@ -218,7 +213,7 @@ async fn handle_auth_requests_loop(mut rx: mpsc::UnboundedReceiver<AuthRequest>)
                         continue;
                     }
                 } else {
-                    break Err(e.into());
+                    break Err(e);
                 }
                 attempts += 1;
             } else {
@@ -276,7 +271,7 @@ fn handle_openauthmod(
 
         match p.identifier.to_string().as_str() {
             "oam:join" => {
-                let Ok(server_id_hash) = String::read_from(&mut data) else {
+                let Ok(server_id_hash) = String::azalea_read(&mut data) else {
                     error!("Failed to read server id hash from oam:join packet");
                     continue;
                 };
@@ -334,14 +329,13 @@ fn handle_join_task(
                 error!("Sessionserver error: {e:?}");
             }
 
-            send_packets.send(SendLoginPacketEvent {
-                entity: task.entity,
-                packet: ServerboundCustomQueryAnswerPacket {
+            send_packets.send(SendLoginPacketEvent::new(
+                task.entity,
+                ServerboundCustomQueryAnswer {
                     transaction_id: task.transaction_id,
                     data: Some(vec![if result.is_ok() { 1 } else { 0 }].into()),
-                }
-                .get(),
-            });
+                },
+            ));
         }
     }
 }
