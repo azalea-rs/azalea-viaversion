@@ -1,341 +1,277 @@
-mod download;
+#[macro_use]
+extern crate kdam;
+#[macro_use]
+extern crate lazy_regex;
+#[macro_use]
+extern crate tracing;
 
-use std::{
-    io::Cursor,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::PathBuf,
-};
+use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
+use anyhow::{Context, Result};
 use azalea::{
-    app::{App, Plugin, PreUpdate, Startup, Update},
-    auth::sessionserver::ClientSessionServerError,
+    app::{App, Plugin, PreUpdate, Startup},
+    auth::sessionserver::{join_with_server_id_hash, ClientSessionServerError},
     buf::AzaleaRead,
     ecs::prelude::*,
-    packet_handling::login::{self, IgnoreQueryIds, LoginPacketEvent, SendLoginPacketEvent},
+    packet_handling::login::{
+        process_packet_events, IgnoreQueryIds, LoginPacketEvent, LoginSendPacketQueue,
+    },
     prelude::*,
     protocol::{
-        packets::login::{ClientboundLoginPacket, ServerboundCustomQueryAnswer},
+        packets::login::{
+            ClientboundLoginPacket, ServerboundCustomQueryAnswer, ServerboundLoginPacket,
+        },
         ServerAddress,
     },
     swarm::Swarm,
 };
-use download::download_file;
+use bevy_tasks::IoTaskPool;
+use futures_util::StreamExt;
+use kdam::BarExt;
+use reqwest::IntoUrl;
+use semver::Version;
 use tokio::{
-    io::AsyncBufReadExt,
-    sync::{mpsc, oneshot},
+    fs::File,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+    process::Command,
 };
-use tracing::{error, info};
+use ClientSessionServerError::{ForbiddenOperation, InvalidSession};
 
-const VIAPROXY_DOWNLOAD_URL: &str =
-    "https://github.com/ViaVersion/ViaProxy/releases/download/v3.3.5/ViaProxy-3.3.5.jar";
+const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
+const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 0);
+const VIA_PROXY_VERSION: Version = Version::new(3, 3, 6);
 
-const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation/";
-
-#[derive(Clone, Debug, Resource)]
+#[derive(Clone, Resource)]
 pub struct ViaVersionPlugin {
-    bind_port: u16,
-    version: String,
-    auth_request_tx: mpsc::UnboundedSender<AuthRequest>,
-}
-
-/// Download viaproxy and return the path to the downloaded jar file.
-async fn download_viaproxy() -> PathBuf {
-    let minecraft_dir = minecraft_folder_path::minecraft_dir().unwrap_or_else(|| {
-        panic!(
-            "No {} environment variable found",
-            minecraft_folder_path::home_env_var()
-        )
-    });
-
-    let download_directory = minecraft_dir.join("azalea-viaversion");
-    let download_filename = VIAPROXY_DOWNLOAD_URL.split('/').last().unwrap();
-    let download_path = download_directory.join(download_filename);
-
-    if !download_directory.exists() {
-        std::fs::create_dir_all(&download_directory).unwrap();
-    }
-
-    download_path
-}
-
-impl ViaVersionPlugin {
-    pub async fn start(version: &str) -> Self {
-        verify_java_version();
-
-        let download_path = download_viaproxy().await;
-
-        if !download_path.exists() {
-            let client = reqwest::Client::new();
-            download_file(
-                &client,
-                VIAPROXY_DOWNLOAD_URL,
-                &download_path.to_string_lossy(),
-            )
-            .await
-            .unwrap();
-        }
-
-        let download_directory = download_path.parent().unwrap();
-
-        // pick a port to run viaproxy on
-        let bind_port = portpicker::pick_unused_port().expect("No ports available");
-
-        let mut child = tokio::process::Command::new("java")
-            .current_dir(download_directory)
-            .arg("-jar")
-            .arg(download_path)
-            .arg("cli")
-            .arg("--bind-address")
-            .arg(format!("127.0.0.1:{bind_port}"))
-            .arg("--wildcard-domain-handling")
-            .arg("INTERNAL")
-            .arg("--target-version")
-            .arg(version)
-            .arg("--auth-method")
-            .arg("OPENAUTHMOD")
-            // target address doesn't matter since we're using wildcard domain handling
-            .arg("--target-address")
-            .arg("127.0.0.1:0")
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("Failed to start ViaProxy");
-
-        let Some(stdout) = child.stdout.as_mut() else {
-            panic!("ViaProxy failed to start");
-        };
-        let mut stdout = tokio::io::BufReader::new(stdout);
-        let mut line = String::new();
-        loop {
-            line.clear();
-            stdout.read_line(&mut line).await.unwrap();
-            if line.contains("Binding proxy server to ") {
-                info!("ViaProxy is ready!");
-                break;
-            }
-        }
-
-        // wait 100ms just to be safe
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        let (auth_request_tx, auth_request_rx) = mpsc::unbounded_channel();
-
-        tokio::spawn(handle_auth_requests_loop(auth_request_rx));
-
-        Self {
-            bind_port,
-            version: version.to_string(),
-            auth_request_tx,
-        }
-    }
-}
-
-fn verify_java_version() {
-    let java_version = std::process::Command::new("java").arg("--version").output();
-    let java_version = match java_version {
-        Ok(java_version) => {
-            let java_version = String::from_utf8(java_version.stdout).unwrap();
-            let version_regex = regex::Regex::new(r"\d{1,}\.\d{1,}\.\d{1,}").unwrap();
-            let Some(captures) = version_regex.captures(&java_version) else {
-                panic!("Could not parse java version from string '{java_version}'");
-            };
-            captures[0].to_string()
-        }
-        Err(_) => {
-            panic!(
-                "Java installation not found! You can download Java from {JAVA_DOWNLOAD_URL} or \
-                your system's package manager"
-            );
-        }
-    };
-    let java_major_version = match java_version.split('.').next().unwrap().parse::<u32>() {
-        Ok(major_version) => major_version,
-        Err(_) => {
-            panic!(
-                "Java versions past Java 4294967296 aren't supported, try downloading a sane \
-                version of Java from {JAVA_DOWNLOAD_URL} (version string: '{java_version}')"
-            );
-        }
-    };
-
-    if java_major_version < 17 {
-        panic!(
-            "Java version 17 or greater is required, either change your Java home or install a \
-            newer Java version from {JAVA_DOWNLOAD_URL}\nfound {java_major_version} (version \
-            string: '{java_version}')"
-        );
-    }
-}
-
-pub struct AuthRequest {
-    server_id_hash: String,
-    account: Account,
-    tx: oneshot::Sender<Result<(), ClientSessionServerError>>,
-}
-
-async fn handle_auth_requests_loop(mut rx: mpsc::UnboundedReceiver<AuthRequest>) {
-    while let Some(AuthRequest {
-        server_id_hash,
-        account,
-        tx,
-    }) = rx.recv().await
-    {
-        let client = reqwest::Client::new();
-
-        let uuid = account.uuid_or_offline();
-        let Some(access_token) = account.access_token.clone() else {
-            continue;
-        };
-
-        let mut attempts = 0;
-        let result = loop {
-            if let Err(e) = {
-                let access_token = access_token.lock().clone();
-                azalea::auth::sessionserver::join_with_server_id_hash(
-                    &client,
-                    &access_token,
-                    &uuid,
-                    &server_id_hash,
-                )
-                .await
-            } {
-                if attempts >= 2 {
-                    // if this is the second attempt and we failed both times, give up
-                    break Err(e);
-                }
-                if matches!(
-                    e,
-                    ClientSessionServerError::InvalidSession
-                        | ClientSessionServerError::ForbiddenOperation
-                ) {
-                    // uh oh, we got an invalid session and have to reauthenticate now
-                    if let Err(e) = account.refresh().await {
-                        error!("Failed to refresh account: {e:?}");
-                        continue;
-                    }
-                } else {
-                    break Err(e);
-                }
-                attempts += 1;
-            } else {
-                break Ok(());
-            }
-        };
-
-        let _ = tx.send(result);
-    }
+    bind_addr: SocketAddr,
+    mc_version: String,
 }
 
 impl Plugin for ViaVersionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, change_connection_address);
-        app.add_systems(
-            PreUpdate,
-            handle_openauthmod.before(login::process_packet_events),
-        );
-        app.add_systems(Update, handle_join_task);
-
-        app.insert_resource(self.clone());
+        app.insert_resource(self.clone())
+            .add_systems(Startup, Self::handle_change_address)
+            .add_systems(PreUpdate, Self::handle_oauth.before(process_packet_events));
     }
 }
 
-fn change_connection_address(swarm: Res<Swarm>, plugin: Res<ViaVersionPlugin>) {
-    let target_address = swarm.address.read().clone();
-
-    *swarm.address.write() = ServerAddress {
-        // ip\7port\7version\7mppass
-        host: format!(
-            "{ip}:{port}\x07{version}\x07{mppass}",
-            ip = target_address.host,
-            port = target_address.port,
-            version = plugin.version,
-            mppass = ""
-        ),
-        port: 25565,
-    };
-    *swarm.resolved_address.write() =
-        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, plugin.bind_port));
-}
-
-fn handle_openauthmod(
-    mut commands: Commands,
-    mut events: EventReader<LoginPacketEvent>,
-    mut query: Query<(&Account, &mut IgnoreQueryIds)>,
-
-    plugin: Res<ViaVersionPlugin>,
-) {
-    for event in events.read() {
-        let ClientboundLoginPacket::CustomQuery(p) = &*event.packet else {
-            continue;
+impl ViaVersionPlugin {
+    /// # Download & Start a local `ViaProxy` instance.
+    ///
+    /// # Panics
+    /// Will panic if one of the following fails:
+    /// - `try_find_java_version`
+    /// - `minecraft_dir`
+    /// - `try_download_file`
+    /// - `try_find_free_addr`
+    /// - `ChildStdout::stdout`
+    /// - `BufReader::read_line`
+    pub async fn start(mc_version: &str) -> Self {
+        let Some(java_version) = try_find_java_version().await.expect("Failed to parse") else {
+            panic!("Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager.");
         };
-        let mut data = Cursor::new(&*p.data);
 
-        match p.identifier.to_string().as_str() {
-            "oam:join" => {
-                let Ok(server_id_hash) = String::azalea_read(&mut data) else {
-                    error!("Failed to read server id hash from oam:join packet");
-                    continue;
-                };
+        let mc_path = minecraft_folder_path::minecraft_dir().expect("Unsupported Platform");
 
-                let (account, mut ignore_query_ids) = query.get_mut(event.entity).unwrap();
+        #[rustfmt::skip] /* Why can't we have nice things */
+        let via_proxy_ext = if java_version.major < 17 { "+java8.jar" } else { ".jar" };
+        let via_proxy_name = format!("ViaProxy-{VIA_PROXY_VERSION}{via_proxy_ext}");
+        let via_proxy_path = mc_path.join("azalea-viaversion");
+        let via_proxy_url = format!("https://github.com/ViaVersion/ViaProxy/releases/download/v{VIA_PROXY_VERSION}/{via_proxy_name}");
+        try_download_file(via_proxy_url, &via_proxy_path, &via_proxy_name)
+            .await
+            .expect("Failed to download ViaProxy");
 
-                ignore_query_ids.insert(p.transaction_id);
+        let via_oauth_name = format!("ViaProxyOpenAuthMod-{VIA_OAUTH_VERSION}.jar");
+        let via_oauth_path = via_proxy_path.join("plugins");
+        let via_oauth_url = format!("https://github.com/ViaVersionAddons/ViaProxyOpenAuthMod/releases/download/v{VIA_OAUTH_VERSION}/{via_oauth_name}");
+        try_download_file(via_oauth_url, &via_oauth_path, &via_oauth_name)
+            .await
+            .expect("Failed to download ViaProxyOpenAuthMod");
 
-                if account.access_token.is_none() {
-                    error!("Server is online-mode, but our account is offline-mode");
-                    continue;
-                };
+        let bind_addr = try_find_free_addr().await.expect("Failed to bind");
+        let mut child = Command::new("java")
+            /* Java Args */
+            .args(["-jar", &via_proxy_name])
+            /* ViaProxy Args */
+            .arg("cli")
+            .args(["--auth-method", "OPENAUTHMOD"])
+            .args(["--bind-address", &bind_addr.to_string()])
+            .args(["--target-address", "127.0.0.1:0"])
+            .args(["--target-version", mc_version])
+            .args(["--wildcard-domain-handling", "INTERNAL"])
+            .current_dir(via_proxy_path)
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn");
 
-                let (tx, rx) = oneshot::channel();
+        let mut stdout = child.stdout.as_mut().expect("Failed to get stdout");
+        let mut reader = BufReader::new(&mut stdout);
 
-                let request = AuthRequest {
-                    server_id_hash,
-                    account: account.clone(),
-                    tx,
-                };
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).await.expect("Failed to read");
 
-                plugin.auth_request_tx.send(request).unwrap();
-
-                commands.spawn(JoinServerTask {
-                    entity: event.entity,
-                    rx,
-                    transaction_id: p.transaction_id,
-                });
+            if line.contains("Finished mapping loading") {
+                break;
             }
-            "oam:sign_nonce" => {}
-            "oam:data" => {}
-            _ => {}
+        }
+
+        Self {
+            bind_addr,
+            mc_version: mc_version.to_owned(),
+        }
+    }
+
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn handle_change_address(plugin: Res<Self>, swarm: Res<Swarm>) {
+        let ServerAddress { host, port } = swarm.address.read().clone();
+
+        *swarm.resolved_address.write() = plugin.bind_addr;
+        *swarm.address.write() = ServerAddress {
+            port: 25565, /* Ignored */
+            host: format!("{host}:{port}\x07{}\x07", plugin.mc_version),
+        };
+    }
+
+    pub fn handle_oauth(
+        mut events: EventReader<LoginPacketEvent>,
+        mut query: Query<(&mut IgnoreQueryIds, &Account, &LoginSendPacketQueue)>,
+    ) {
+        for event in events.read().cloned() {
+            let ClientboundLoginPacket::CustomQuery(packet) = &*event.packet else {
+                continue;
+            };
+
+            if packet.identifier.to_string().as_str() != "oam:join" {
+                continue;
+            }
+
+            let mut buf = Cursor::new(&*packet.data);
+            let Ok(hash) = String::azalea_read(&mut buf) else {
+                error!("Failed to read server id hash from oam:join packet");
+                continue;
+            };
+
+            let Ok((mut ignored_ids, account, queue)) = query.get_mut(event.entity) else {
+                continue;
+            };
+
+            ignored_ids.insert(packet.transaction_id);
+
+            let Some(access_token) = &account.access_token else {
+                error!("Server is online-mode, but our account is offline-mode");
+                continue;
+            };
+
+            let client = reqwest::Client::new();
+            let token = access_token.lock().clone();
+            let uuid = account.uuid_or_offline();
+            let account = account.clone();
+            let transaction_id = packet.transaction_id;
+            let tx = queue.tx.clone();
+
+            let _task = IoTaskPool::get().spawn(async move {
+                let result = match join_with_server_id_hash(&client, &token, &uuid, &hash).await {
+                    Ok(()) => Ok(()), /* Successfully Authenticated */
+                    Err(InvalidSession | ForbiddenOperation) => {
+                        if let Err(error) = account.refresh().await {
+                            error!("Failed to refresh account: {error}");
+                            return;
+                        }
+
+                        /* Retry after refreshing */
+                        join_with_server_id_hash(&client, &token, &uuid, &hash).await
+                    }
+                    Err(error) => Err(error),
+                };
+
+                /* Send directly to the queue instead of SendLoginPacketEvent */
+                let _ = tx.send(ServerboundLoginPacket::CustomQueryAnswer(
+                    ServerboundCustomQueryAnswer {
+                        transaction_id,
+                        data: Some(vec![u8::from(result.is_ok())].into()),
+                    },
+                ));
+            });
         }
     }
 }
 
-#[derive(Component)]
-struct JoinServerTask {
-    entity: Entity,
-    rx: oneshot::Receiver<Result<(), ClientSessionServerError>>,
-    transaction_id: u32,
+/// # Try to find the systems java version.
+/// This uses `-version` and `stderr` because it's backwards compatible.
+///
+/// # Errors
+/// Will return `Err` if `Version::parse` fails.
+///
+/// # Options
+/// Will return `None` if java is not found.
+pub async fn try_find_java_version() -> Result<Option<Version>> {
+    Ok(match Command::new("java").arg("-version").output().await {
+        Err(_) => None, /* Java not found */
+        Ok(output) => {
+            let stderr = String::from_utf8(output.stderr).context("UTF-8")?;
+            let text = regex_captures!(r"\d{1,}\.\d{1,}\.\d{1,}", &stderr).context("Regex")?;
+            let version = Version::parse(text).context("Version")?;
+
+            Some(version)
+        }
+    })
 }
 
-fn handle_join_task(
-    mut commands: Commands,
-    mut join_server_tasks: Query<(Entity, &mut JoinServerTask)>,
-    mut send_packets: EventWriter<SendLoginPacketEvent>,
-) {
-    for (entity, mut task) in &mut join_server_tasks {
-        if let Ok(result) = task.rx.try_recv() {
-            // Task is complete, so remove task component from entity
-            commands.entity(entity).remove::<JoinServerTask>();
+/// # Try to find a free addr and port.
+/// This uses `TcpListener` to ask the system for a free port.
+///
+/// # Errors
+/// Will return `Err` if `TcpListener::bind` or `TcpListener::local_addr` fails.
+pub async fn try_find_free_addr() -> Result<SocketAddr> {
+    Ok(TcpListener::bind("127.0.0.1:0").await?.local_addr()?)
+}
 
-            if let Err(e) = &result {
-                error!("Sessionserver error: {e:?}");
-            }
-
-            send_packets.send(SendLoginPacketEvent::new(
-                task.entity,
-                ServerboundCustomQueryAnswer {
-                    transaction_id: task.transaction_id,
-                    data: Some(vec![if result.is_ok() { 1 } else { 0 }].into()),
-                },
-            ));
-        }
+/// # Try to download and save a file in a dir from a url if it doesn't exist.
+///
+/// # Errors
+/// Will return `Err` if one of the following fails:
+/// - `reqwest::get`
+/// - `usize::try_from`
+/// - `Bar::write`
+/// - `File::create`
+/// - `StreamExt::next`
+/// - `AsyncWriteExt::write_all`
+/// - `Bar::update`
+/// - `Bar::refresh`
+pub async fn try_download_file<U, P>(url: U, dir: P, file: &str) -> Result<()>
+where
+    U: IntoUrl,
+    P: AsRef<Path>,
+{
+    let path = dir.as_ref().join(file);
+    if path.exists() {
+        return Ok(());
     }
+
+    let response = reqwest::get(url).await?;
+    let mut pb = tqdm!(
+        total = usize::try_from(response.content_length().unwrap_or(0))?,
+        unit_scale = true,
+        unit_divisor = 1024,
+        unit = "B",
+        force_refresh = true
+    );
+
+    pb.write(format!("Downloading {file}"))?;
+
+    let mut file = File::create(path).await?;
+    let mut stream = response.bytes_stream();
+
+    while let Some(item) = stream.next().await {
+        let chunk = item?;
+        file.write_all(&chunk).await?;
+        pb.update(chunk.len())?;
+    }
+
+    pb.refresh()?;
+
+    Ok(())
 }
