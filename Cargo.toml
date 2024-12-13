@@ -6,16 +6,24 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.82"
+anyhow = "1"
 azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
-futures-util = "0.3.30"
-indicatif = "0.17.8"
-minecraft_folder_path = "0.1.2"
-portpicker = "0.1.1"
-regex = "1.10.4"
-reqwest = { version = "0.12.4", default-features = false, features = [
-    "rustls-tls",
-    "stream",
-] }
-tokio = { version = "1.37.0", features = ["process"] }
-tracing = "0.1.40"
+bevy_tasks = "0.15"
+futures-util = "0.3"
+kdam = "0.6"
+lazy-regex = "3"
+minecraft_folder_path = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+semver = "1"
+tokio = "1"
+tracing = "0.1"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
