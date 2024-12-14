@@ -23,7 +23,6 @@ use azalea::{
     },
     swarm::Swarm,
 };
-use bevy_tasks::IoTaskPool;
 use futures_util::StreamExt;
 use kdam::BarExt;
 use reqwest::IntoUrl;
@@ -106,17 +105,25 @@ impl ViaVersionPlugin {
             .spawn()
             .expect("Failed to spawn");
 
-        let mut stdout = child.stdout.as_mut().expect("Failed to get stdout");
-        let mut reader = BufReader::new(&mut stdout);
-
-        loop {
+        let (tx, mut rx) = tokio::sync::watch::channel(());
+        tokio::spawn(async move {
+            let mut stdout = child.stdout.as_mut().expect("Failed to get stdout");
+            let mut reader = BufReader::new(&mut stdout);
             let mut line = String::new();
-            reader.read_line(&mut line).await.expect("Failed to read");
 
-            if line.contains("Finished mapping loading") {
-                break;
+            loop {
+                line.clear();
+                reader.read_line(&mut line).await.expect("Failed to read");
+
+                debug!("{}", line.trim());
+                if line.contains("Finished mapping loading") {
+                    let _ = tx.send(());
+                }
             }
-        }
+        });
+
+        /* Wait until ViaProxy is ready */
+        let _ = rx.changed().await;
 
         Self {
             bind_addr,
@@ -178,7 +185,7 @@ impl ViaVersionPlugin {
             let transaction_id = packet.transaction_id;
             let tx = queue.tx.clone();
 
-            let _task = IoTaskPool::get().spawn(async move {
+            let _handle = tokio::spawn(async move {
                 let result = match join_with_server_id_hash(&client, &token, &uuid, &hash).await {
                     Ok(()) => Ok(()), /* Successfully Authenticated */
                     Err(InvalidSession | ForbiddenOperation) => {
