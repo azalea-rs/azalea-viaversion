@@ -5,8 +5,6 @@ extern crate lazy_regex;
 #[macro_use]
 extern crate tracing;
 
-use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
-
 use anyhow::{Context, Result};
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
@@ -30,6 +28,7 @@ use futures_util::StreamExt;
 use kdam::BarExt;
 use reqwest::IntoUrl;
 use semver::Version;
+use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 use tokio::{
     fs::File,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -67,11 +66,12 @@ impl ViaVersionPlugin {
     /// - `try_find_free_addr`
     /// - `ChildStdout::stdout`
     /// - `BufReader::read_line`
-    pub async fn start(mc_version: &str) -> Self {
+    pub async fn start(mc_version: impl ToString) -> Self {
         let Some(java_version) = try_find_java_version().await.expect("Failed to parse") else {
             panic!("Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager.");
         };
 
+        let mc_version = mc_version.to_string();
         let mc_path = minecraft_folder_path::minecraft_dir().expect("Unsupported Platform");
 
         #[rustfmt::skip] /* Why can't we have nice things */
@@ -99,7 +99,7 @@ impl ViaVersionPlugin {
             .args(["--auth-method", "OPENAUTHMOD"])
             .args(["--bind-address", &bind_addr.to_string()])
             .args(["--target-address", "127.0.0.1:0"])
-            .args(["--target-version", mc_version])
+            .args(["--target-version", &mc_version])
             .args(["--wildcard-domain-handling", "INTERNAL"])
             .current_dir(via_proxy_path)
             .stdout(Stdio::piped())
@@ -120,7 +120,7 @@ impl ViaVersionPlugin {
 
         Self {
             bind_addr,
-            mc_version: mc_version.to_owned(),
+            mc_version,
         }
     }
 
@@ -128,11 +128,17 @@ impl ViaVersionPlugin {
     pub fn handle_change_address(plugin: Res<Self>, swarm: Res<Swarm>) {
         let ServerAddress { host, port } = swarm.address.read().clone();
 
-        *swarm.resolved_address.write() = plugin.bind_addr;
         *swarm.address.write() = ServerAddress {
-            port: 25565, /* Ignored */
-            host: format!("{host}:{port}\x07{}\x07", plugin.mc_version),
+            port,
+            host: format!(
+                "{host}\x07{addr}\x07{version}",
+                addr = swarm.resolved_address.read(),
+                version = plugin.mc_version
+            ),
         };
+
+        /* Must be written after reading above */
+        *swarm.resolved_address.write() = plugin.bind_addr;
     }
 
     pub fn handle_oauth(
