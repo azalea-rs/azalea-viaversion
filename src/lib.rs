@@ -1,10 +1,3 @@
-#[macro_use]
-extern crate kdam;
-#[macro_use]
-extern crate lazy_regex;
-#[macro_use]
-extern crate tracing;
-
 use anyhow::{Context, Result};
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
@@ -24,7 +17,9 @@ use azalea::{
     swarm::Swarm,
 };
 use futures_util::StreamExt;
-use kdam::BarExt;
+use kdam::{tqdm, BarExt};
+use lazy_regex::regex_captures;
+use reqwest::Client;
 use reqwest::IntoUrl;
 use semver::Version;
 use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
@@ -34,7 +29,7 @@ use tokio::{
     net::TcpListener,
     process::Command,
 };
-use ClientSessionServerError::{ForbiddenOperation, InvalidSession};
+use tracing::{debug, error, trace};
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 0);
@@ -55,16 +50,10 @@ impl Plugin for ViaVersionPlugin {
 }
 
 impl ViaVersionPlugin {
-    /// # Download & Start a local `ViaProxy` instance.
+    /// # Download and start a ViaProxy instance.
     ///
     /// # Panics
-    /// Will panic if one of the following fails:
-    /// - `try_find_java_version`
-    /// - `minecraft_dir`
-    /// - `try_download_file`
-    /// - `try_find_free_addr`
-    /// - `ChildStdout::stdout`
-    /// - `BufReader::read_line`
+    /// Will panic if java fails to parse, files fail to download, or ViaProxy fails to start.
     pub async fn start(mc_version: impl ToString) -> Self {
         let Some(java_version) = try_find_java_version().await.expect("Failed to parse") else {
             panic!("Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager.");
@@ -73,7 +62,7 @@ impl ViaVersionPlugin {
         let mc_version = mc_version.to_string();
         let mc_path = minecraft_folder_path::minecraft_dir().expect("Unsupported Platform");
 
-        #[rustfmt::skip] /* Why can't we have nice things */
+        #[rustfmt::skip]
         let via_proxy_ext = if java_version.major < 17 { "+java8.jar" } else { ".jar" };
         let via_proxy_name = format!("ViaProxy-{VIA_PROXY_VERSION}{via_proxy_ext}");
         let via_proxy_path = mc_path.join("azalea-viaversion");
@@ -115,7 +104,7 @@ impl ViaVersionPlugin {
                 line.clear();
                 reader.read_line(&mut line).await.expect("Failed to read");
 
-                debug!("{}", line.trim());
+                trace!("{}", line.trim());
                 if line.contains("Finished mapping loading") {
                     let _ = tx.send(());
                 }
@@ -144,7 +133,7 @@ impl ViaVersionPlugin {
             ),
         };
 
-        /* Must be written after reading above */
+        /* Must wait to be written until after reading above */
         *swarm.resolved_address.write() = plugin.bind_addr;
     }
 
@@ -178,7 +167,7 @@ impl ViaVersionPlugin {
                 continue;
             };
 
-            let client = reqwest::Client::new();
+            let client = Client::new();
             let token = access_token.lock().clone();
             let uuid = account.uuid_or_offline();
             let account = account.clone();
@@ -200,7 +189,7 @@ impl ViaVersionPlugin {
                     Err(error) => Err(error),
                 };
 
-                /* Send directly to the queue instead of SendLoginPacketEvent */
+                /* Send directly instead of SendLoginPacketEvent because of lifetimes */
                 let _ = tx.send(ServerboundLoginPacket::CustomQueryAnswer(
                     ServerboundCustomQueryAnswer {
                         transaction_id,
@@ -233,7 +222,7 @@ pub async fn try_find_java_version() -> Result<Option<Version>> {
     })
 }
 
-/// # Try to find a free addr and port.
+/// # Try to find a free port and return the socket address
 /// This uses `TcpListener` to ask the system for a free port.
 ///
 /// # Errors
@@ -242,18 +231,10 @@ pub async fn try_find_free_addr() -> Result<SocketAddr> {
     Ok(TcpListener::bind("127.0.0.1:0").await?.local_addr()?)
 }
 
-/// # Try to download and save a file in a dir from a url if it doesn't exist.
+/// # Try to download and save a file if it doesn't exist.
 ///
 /// # Errors
-/// Will return `Err` if one of the following fails:
-/// - `reqwest::get`
-/// - `usize::try_from`
-/// - `Bar::write`
-/// - `File::create`
-/// - `StreamExt::next`
-/// - `AsyncWriteExt::write_all`
-/// - `Bar::update`
-/// - `Bar::refresh`
+/// Will return `Err` if the file fails to download or save.
 pub async fn try_download_file<U, P>(url: U, dir: P, file: &str) -> Result<()>
 where
     U: IntoUrl,

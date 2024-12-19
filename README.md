@@ -1,6 +1,6 @@
 # Azalea ViaVersion Plugin
 
-Enhance multi-version compatibility for your [Azalea] bots using [ViaProxy].
+Add multi-version compatibility for your [Azalea] bots using [ViaProxy].
 
 ## Usage
 
@@ -8,6 +8,13 @@ To use this plugin, simply add the dependencies:
 
 - `cargo add --git https://github.com/azalea-rs/azalea azalea`
 - `cargo add --git https://github.com/azalea-rs/azalea-viaversion azalea-viaversion`
+
+Note: If you use your own fork of Azalea you must use cargo patch to replace it recursively.
+
+```toml
+[patch.'https://github.com/azalea-rs/azalea']
+azalea = { git = "https://github.com/Your-Name-Here/azalea" }
+```
 
 Then integrate it into your `ClientBuilder` or `SwarmBuilder`:
 
