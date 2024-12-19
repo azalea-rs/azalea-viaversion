@@ -1,30 +1,21 @@
-use azalea::{prelude::*, swarm::SwarmBuilder};
+use anyhow::Result;
+use azalea::{prelude::*, swarm::SwarmBuilder, NoState};
 use azalea_viaversion::ViaVersionPlugin;
 
 #[tokio::main]
 async fn main() {
-    let account = Account::microsoft("example@example.com").await.unwrap();
-
-    loop {
-        let e = SwarmBuilder::new()
-            .set_handler(handle)
-            .add_plugins(ViaVersionPlugin::start("1.19.4").await)
-            .add_account(account.clone())
-            .start("localhost")
-            .await;
-        eprintln!("{e:?}");
-    }
+    SwarmBuilder::new()
+        .add_account(Account::offline("Azalea"))
+        .add_plugins(ViaVersionPlugin::start("1.21.4").await)
+        .set_handler(handler)
+        .start("localhost")
+        .await
+        .unwrap();
 }
 
-#[derive(Default, Clone, Component)]
-pub struct State;
-
-async fn handle(_bot: Client, event: Event, _state: State) -> anyhow::Result<()> {
-    match event {
-        Event::Chat(m) => {
-            println!("{}", m.message().to_ansi());
-        }
-        _ => {}
+async fn handler(_client: Client, event: Event, _: NoState) -> Result<()> {
+    if let Event::Chat(chat) = event {
+        println!("{}", chat.message().to_ansi());
     }
 
     Ok(())
