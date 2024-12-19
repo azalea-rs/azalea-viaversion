@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
-    auth::sessionserver::{join_with_server_id_hash, ClientSessionServerError},
+    auth::sessionserver::{
+        join_with_server_id_hash,
+        ClientSessionServerError::{self, ForbiddenOperation, InvalidSession},
+    },
     buf::AzaleaRead,
     ecs::prelude::*,
     packet_handling::login::{
