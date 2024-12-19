@@ -1,22 +1,43 @@
-# azalea-viaversion
+# Azalea ViaVersion Plugin
 
-Add multiversion support to your [Azalea](https://github.com/mat-1/azalea) bots, powered by [ViaProxy](https://github.com/ViaVersion/ViaProxy).
+Add multi-version compatibility for your [Azalea] bots using [ViaProxy].
 
 ## Usage
 
-To use this plugin, simply add the dependency with `cargo add azalea-viaversion --git=https://github.com/azalea-rs/azalea-viaversion` and then add `.add_plugins(azalea_viaversion::ViaVersionPlugin::start("version name here").await)` to your `ClientBuilder` or `SwarmBuilder`.
+To use this plugin, simply add the dependencies:
 
-Note that this plugin depends on the Git (unstable) version of Azalea, so make sure you're using that.
+- `cargo add --git https://github.com/azalea-rs/azalea azalea`
+- `cargo add --git https://github.com/azalea-rs/azalea-viaversion azalea-viaversion`
 
-```rs
-SwarmBuilder::new()
-    .set_handler(handle)
-    .add_plugins(azalea_viaversion::ViaVersionPlugin::start("1.19.4").await)
-    .add_account(account.clone())
-    .start("localhost")
-    .await;
+Note: If you use your own fork of Azalea you must use cargo patch to replace it recursively.
+
+```toml
+[patch.'https://github.com/azalea-rs/azalea']
+azalea = { git = "https://github.com/Your-Name-Here/azalea" }
 ```
 
-# How it works
+Then integrate it into your `ClientBuilder` or `SwarmBuilder`:
 
-The plugin will automatically download ViaProxy to `~/.minecraft/azalea-viaversion`. It then starts up ViaProxy in the background and changes the connection address for the bots to the proxy. It also implements OpenAuthMod so it can keep using Azalea's normal auth mechanisms.
+- `.add_plugins(ViaVersionPlugin::start("1.21.4").await)`
+
+```rs
+#[tokio::main]
+async fn main() {
+    SwarmBuilder::new()
+        .add_account(Account::offline("Azalea"))
+        .add_plugins(ViaVersionPlugin::start("1.21.4").await)
+        .start("localhost")
+        .await
+        .unwrap();
+}
+```
+
+## How it works
+
+The plugin will automatically download ViaProxy to `~/.minecraft/azalea-viaversion`. It then starts up ViaProxy in the
+background and changes the connection address for the bots to the proxy. It also implements OpenAuthMod so it can keep
+using Azalea's normal auth mechanisms.
+
+[Azalea]: https://github.com/mat-1/azalea
+
+[ViaProxy]: https://github.com/ViaVersion/ViaProxy
