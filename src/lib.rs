@@ -3,7 +3,7 @@ use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
     auth::sessionserver::{
         join_with_server_id_hash,
-        ClientSessionServerError::{self, ForbiddenOperation, InvalidSession},
+        ClientSessionServerError::{ForbiddenOperation, InvalidSession},
     },
     buf::AzaleaRead,
     ecs::prelude::*,
@@ -32,7 +32,7 @@ use tokio::{
     net::TcpListener,
     process::Command,
 };
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 0);
@@ -243,6 +243,7 @@ where
     U: IntoUrl,
     P: AsRef<Path>,
 {
+    tokio::fs::create_dir_all(&dir).await?;
     let path = dir.as_ref().join(file);
     if path.exists() {
         return Ok(());
