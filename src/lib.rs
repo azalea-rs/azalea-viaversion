@@ -217,8 +217,15 @@ pub async fn try_find_java_version() -> Result<Option<Version>> {
         Err(_) => None, /* Java not found */
         Ok(output) => {
             let stderr = String::from_utf8(output.stderr).context("UTF-8")?;
-            let text = regex_captures!(r"\d{1,}\.\d{1,}\.\d{1,}", &stderr).context("Regex")?;
-            let version = Version::parse(text).context("Version")?;
+            let (major, mut minor_patch, _) =
+                regex_captures!(r"(\d+)(\.\d+\.\d+)?", &stderr).context("Regex")?;
+
+            if minor_patch.is_empty() {
+                minor_patch = "0.0";
+            }
+
+            let text = format!("{major}{minor_patch}");
+            let version = Version::parse(&text).context("Version")?;
 
             Some(version)
         }
