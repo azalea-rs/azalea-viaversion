@@ -1,3 +1,6 @@
+// clippy complains about "ViaProxy"
+#![allow(clippy::doc_markdown)]
+
 use anyhow::{Context, Result};
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
@@ -53,7 +56,7 @@ impl Plugin for ViaVersionPlugin {
 }
 
 impl ViaVersionPlugin {
-    /// # Download and start a ViaProxy instance.
+    /// Download and start a ViaProxy instance.
     ///
     /// # Panics
     /// Will panic if java fails to parse, files fail to download, or ViaProxy fails to start.
@@ -127,13 +130,22 @@ impl ViaVersionPlugin {
     pub fn handle_change_address(plugin: Res<Self>, swarm: Res<Swarm>) {
         let ServerAddress { host, port } = swarm.address.read().clone();
 
+        // sadly, the first part of the resolved address is unused as viaproxy will resolve it on its own
+        // more info: https://github.com/ViaVersion/ViaProxy/issues/338
+        let data_after_null_byte = host.split_once('\x07').map(|(_, data)| data);
+
+        let mut connection_host = format!(
+            "localhost\x07{host}\x07{version}",
+            version = plugin.mc_version
+        );
+        if let Some(data) = data_after_null_byte {
+            connection_host.push('\0');
+            connection_host.push_str(data);
+        }
+
         *swarm.address.write() = ServerAddress {
             port,
-            host: format!(
-                "{host}\x07{addr}\x07{version}",
-                addr = swarm.resolved_address.read(),
-                version = plugin.mc_version
-            ),
+            host: connection_host,
         };
 
         /* Must wait to be written until after reading above */
@@ -204,8 +216,9 @@ impl ViaVersionPlugin {
     }
 }
 
-/// # Try to find the systems java version.
-/// This uses `-version` and `stderr` because it's backwards compatible.
+/// Try to find the system's Java version.
+///
+/// This uses `-version` and `stderr`, because it's backwards compatible.
 ///
 /// # Errors
 /// Will return `Err` if `Version::parse` fails.
@@ -234,7 +247,8 @@ fn parse_java_version(stderr: &str) -> Result<Version> {
     Ok(Version::parse(&text)?)
 }
 
-/// # Try to find a free port and return the socket address
+/// Try to find a free port and return the socket address
+///
 /// This uses `TcpListener` to ask the system for a free port.
 ///
 /// # Errors
@@ -243,14 +257,14 @@ pub async fn try_find_free_addr() -> Result<SocketAddr> {
     Ok(TcpListener::bind("127.0.0.1:0").await?.local_addr()?)
 }
 
-/// # Try to download and save a file if it doesn't exist.
+/// Try to download and save a file if it doesn't exist.
 ///
 /// # Errors
 /// Will return `Err` if the file fails to download or save.
 pub async fn try_download_file<U, P>(url: U, dir: P, file: &str) -> Result<()>
 where
-    U: IntoUrl,
-    P: AsRef<Path>,
+    U: IntoUrl + Send + Sync,
+    P: AsRef<Path> + Send + Sync,
 {
     tokio::fs::create_dir_all(&dir).await?;
     let path = dir.as_ref().join(file);
