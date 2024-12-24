@@ -1,6 +1,3 @@
-// clippy complains about "ViaProxy"
-#![allow(clippy::doc_markdown)]
-
 use anyhow::{Context, Result};
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
