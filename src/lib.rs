@@ -1,4 +1,7 @@
 use anyhow::{Context, Result};
+use azalea::packet::login::{
+    process_packet_events, IgnoreQueryIds, LoginPacketEvent, LoginSendPacketQueue,
+};
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
     auth::sessionserver::{
@@ -7,9 +10,6 @@ use azalea::{
     },
     buf::AzaleaRead,
     ecs::prelude::*,
-    packet_handling::login::{
-        process_packet_events, IgnoreQueryIds, LoginPacketEvent, LoginSendPacketQueue,
-    },
     prelude::*,
     protocol::{
         packets::login::{
