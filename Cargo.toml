@@ -1,27 +1,29 @@
 [package]
 name = "azalea-viaversion"
 version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-anyhow = "1"
-azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
-futures-util = "0.3"
-kdam = "0.6"
-lazy-regex = "3"
-minecraft_folder_path = "0.1"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
-semver = "1"
-tokio = { version = "1", features = ["process"] }
-tracing = "0.1"
-
-[dev-dependencies]
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+edition = "2024"
+repository = "https://github.com/azalea-rs/azalea-viaversion"
 
 [profile.dev]
 opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dependencies]
+anyhow = "1.0"
+azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
+futures-util = "0.3"
+kdam = "0.6"
+lazy-regex = "3.4"
+minecraft_folder_path = "0.1"
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+  "stream",
+] }
+semver = "1.0"
+tokio = { version = "1.44", features = ["process"] }
+tracing = "0.1"
