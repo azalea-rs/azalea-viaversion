@@ -9,11 +9,15 @@ To use this plugin, simply add the dependencies:
 - `cargo add --git https://github.com/azalea-rs/azalea azalea`
 - `cargo add --git https://github.com/azalea-rs/azalea-viaversion azalea-viaversion`
 
-Note: If you use your own fork of Azalea you must use cargo patch to replace it recursively.
+Note: This plugin depends on the main branch of Azalea, if you use a different branch, fork, or revision you have to patch it recursively.  
+This is because you'll end up with two versions of Azalea and their components and resources won't match, causing a `could not access system parameter` error.
 
 ```toml
+[dependencies]
+azalea = { git = "https://github.com/azalea-rs/azalea" }
+
 [patch.'https://github.com/azalea-rs/azalea']
-azalea = { git = "https://github.com/Your-Name-Here/azalea" }
+azalea = { git = "https://github.com/Your-Name-Here/azalea", branch = "..." } # or rev = "..."
 ```
 
 Then integrate it into your `ClientBuilder` or `SwarmBuilder`:
