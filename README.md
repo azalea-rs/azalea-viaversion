@@ -1,6 +1,6 @@
 # Azalea ViaVersion
 
-An [Azalea] plugin using [ViaProxy] to add support for connecting to every Minecraft server version.
+An [Azalea] plugin using [ViaProxy] to support connecting to every Minecraft server version.
 
 ## Usage
 
@@ -22,7 +22,7 @@ fn main() {
 This plugin depends on the `main` branch of [Azalea].
 
 > [!IMPORTANT]
-> If you want use a different branch or fork you ***must*** patch your project's `Cargo.toml` file!
+> If you want use a different branch or fork you **_must_** patch your project's `Cargo.toml` file!
 
 ```toml
 [dependencies]
