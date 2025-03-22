@@ -34,6 +34,10 @@ azalea-viaversion = { git = "https://github.com/azalea-rs/azalea-viaversion" }
 # azalea = { git = "https://github.com/azalea-rs/azalea", branch = "1.21.4" }
 ```
 
+## Matrix/Discord
+
+If you'd like to chat about Azalea, you can join the Matrix space at [#azalea:matdoes.dev](https://matrix.to/#/#azalea:matdoes.dev) (recommended) or the Discord server at [discord.gg/FaRey6ytmC](https://discord.gg/FaRey6ytmC) (they're bridged so you don't need to join both).
+
 ## How it works
 
 The plugin will automatically download ViaProxy to `~/.minecraft/azalea-viaversion`. It then starts up ViaProxy in the
