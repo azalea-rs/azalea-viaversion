@@ -35,8 +35,8 @@ use tokio::{
 use tracing::{error, trace};
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
-const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 0);
-const VIA_PROXY_VERSION: Version = Version::new(3, 3, 7);
+const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 1);
+const VIA_PROXY_VERSION: Version = Version::new(3, 4, 1);
 
 #[derive(Clone, Resource)]
 pub struct ViaVersionPlugin {
