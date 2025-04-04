@@ -138,7 +138,7 @@ impl ViaVersionPlugin {
         let data_after_null_byte = host.split_once('\x07').map(|(_, data)| data);
 
         let mut connection_host = format!(
-            "localhost\x07{host}\x07{version}",
+            "localhost\x07{host}:{port}\x07{version}",
             version = plugin.mc_version
         );
         if let Some(data) = data_after_null_byte {
