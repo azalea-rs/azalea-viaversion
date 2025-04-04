@@ -1,26 +1,26 @@
 use anyhow::{Context, Result};
 use azalea::packet::login::{
-    process_packet_events, IgnoreQueryIds, LoginPacketEvent, LoginSendPacketQueue,
+    IgnoreQueryIds, LoginPacketEvent, LoginSendPacketQueue, process_packet_events,
 };
 use azalea::{
     app::{App, Plugin, PreUpdate, Startup},
     auth::sessionserver::{
-        join_with_server_id_hash,
         ClientSessionServerError::{ForbiddenOperation, InvalidSession},
+        join_with_server_id_hash,
     },
     buf::AzaleaRead,
     ecs::prelude::*,
     prelude::*,
     protocol::{
+        ServerAddress,
         packets::login::{
             ClientboundLoginPacket, ServerboundCustomQueryAnswer, ServerboundLoginPacket,
         },
-        ServerAddress,
     },
     swarm::Swarm,
 };
 use futures_util::StreamExt;
-use kdam::{tqdm, BarExt};
+use kdam::{BarExt, tqdm};
 use lazy_regex::regex_captures;
 use reqwest::Client;
 use reqwest::IntoUrl;
@@ -59,7 +59,9 @@ impl ViaVersionPlugin {
     /// Will panic if java fails to parse, files fail to download, or ViaProxy fails to start.
     pub async fn start(mc_version: impl ToString) -> Self {
         let Some(java_version) = try_find_java_version().await.expect("Failed to parse") else {
-            panic!("Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager.");
+            panic!(
+                "Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager."
+            );
         };
 
         let mc_version = mc_version.to_string();
@@ -69,14 +71,18 @@ impl ViaVersionPlugin {
         let via_proxy_ext = if java_version.major < 17 { "+java8.jar" } else { ".jar" };
         let via_proxy_name = format!("ViaProxy-{VIA_PROXY_VERSION}{via_proxy_ext}");
         let via_proxy_path = mc_path.join("azalea-viaversion");
-        let via_proxy_url = format!("https://github.com/ViaVersion/ViaProxy/releases/download/v{VIA_PROXY_VERSION}/{via_proxy_name}");
+        let via_proxy_url = format!(
+            "https://github.com/ViaVersion/ViaProxy/releases/download/v{VIA_PROXY_VERSION}/{via_proxy_name}"
+        );
         try_download_file(via_proxy_url, &via_proxy_path, &via_proxy_name)
             .await
             .expect("Failed to download ViaProxy");
 
         let via_oauth_name = format!("ViaProxyOpenAuthMod-{VIA_OAUTH_VERSION}.jar");
         let via_oauth_path = via_proxy_path.join("plugins");
-        let via_oauth_url = format!("https://github.com/ViaVersionAddons/ViaProxyOpenAuthMod/releases/download/v{VIA_OAUTH_VERSION}/{via_oauth_name}");
+        let via_oauth_url = format!(
+            "https://github.com/ViaVersionAddons/ViaProxyOpenAuthMod/releases/download/v{VIA_OAUTH_VERSION}/{via_oauth_name}"
+        );
         try_download_file(via_oauth_url, &via_oauth_path, &via_oauth_name)
             .await
             .expect("Failed to download ViaProxyOpenAuthMod");

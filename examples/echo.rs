@@ -4,7 +4,7 @@
 //! The `never_type` feature is completely optional, see how the `swarm` example does not use it.
 #![feature(never_type)]
 
-use azalea::{prelude::*, NoState, StartError};
+use azalea::{NoState, StartError, prelude::*};
 use azalea_viaversion::ViaVersionPlugin;
 
 #[tokio::main]
