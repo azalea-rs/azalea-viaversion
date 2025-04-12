@@ -15,8 +15,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dependencies]
 anyhow = "1.0"
-# azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
-azalea = { path = "../azalea/azalea", default-features = false }
+azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
 bevy_tasks = "0.15.3"
 futures-util = "0.3"
 kdam = "0.6"
