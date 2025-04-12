@@ -1,9 +1,8 @@
 use anyhow::{Context, Result};
-use azalea::packet::login::{
-    IgnoreQueryIds, LoginPacketEvent, LoginSendPacketQueue, process_packet_events,
-};
+use azalea::app::Update;
+use azalea::packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent};
 use azalea::{
-    app::{App, Plugin, PreUpdate, Startup},
+    app::{App, Plugin, Startup},
     auth::sessionserver::{
         ClientSessionServerError::{ForbiddenOperation, InvalidSession},
         join_with_server_id_hash,
@@ -11,18 +10,14 @@ use azalea::{
     buf::AzaleaRead,
     ecs::prelude::*,
     prelude::*,
-    protocol::{
-        ServerAddress,
-        packets::login::{
-            ClientboundLoginPacket, ServerboundCustomQueryAnswer, ServerboundLoginPacket,
-        },
-    },
+    protocol::{ServerAddress, packets::login::ServerboundCustomQueryAnswer},
     swarm::Swarm,
 };
+use bevy_tasks::futures_lite::future;
+use bevy_tasks::{IoTaskPool, Task};
 use futures_util::StreamExt;
 use kdam::{BarExt, tqdm};
 use lazy_regex::regex_captures;
-use reqwest::Client;
 use reqwest::IntoUrl;
 use semver::Version;
 use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
@@ -48,7 +43,13 @@ impl Plugin for ViaVersionPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(self.clone())
             .add_systems(Startup, Self::handle_change_address)
-            .add_systems(PreUpdate, Self::handle_oauth.before(process_packet_events));
+            .add_systems(
+                Update,
+                (
+                    Self::handle_oauth.before(azalea::login::reply_to_custom_queries),
+                    Self::poll_all_oam_join_tasks,
+                ),
+            );
     }
 }
 
@@ -156,49 +157,51 @@ impl ViaVersionPlugin {
     }
 
     pub fn handle_oauth(
-        mut events: EventReader<LoginPacketEvent>,
-        mut query: Query<(&mut IgnoreQueryIds, &Account, &LoginSendPacketQueue)>,
+        mut commands: Commands,
+        mut events: EventMutator<ReceiveCustomQueryEvent>,
+        mut query: Query<&Account>,
     ) {
-        for event in events.read().cloned() {
-            let ClientboundLoginPacket::CustomQuery(packet) = &*event.packet else {
-                continue;
-            };
-
-            if packet.identifier.to_string().as_str() != "oam:join" {
+        for event in events.read() {
+            if event.packet.identifier.to_string().as_str() != "oam:join" {
                 continue;
             }
 
-            let mut buf = Cursor::new(&*packet.data);
+            let mut buf = Cursor::new(&*event.packet.data);
             let Ok(hash) = String::azalea_read(&mut buf) else {
                 error!("Failed to read server id hash from oam:join packet");
                 continue;
             };
 
-            let Ok((mut ignored_ids, account, queue)) = query.get_mut(event.entity) else {
+            let Ok(account) = query.get_mut(event.entity) else {
                 continue;
             };
 
-            ignored_ids.insert(packet.transaction_id);
+            // this makes it so azalea doesn't reply to the query so we can handle it ourselves
+            event.disabled = true;
 
             let Some(access_token) = &account.access_token else {
                 error!("Server is online-mode, but our account is offline-mode");
+                commands.trigger(SendLoginPacketEvent::new(
+                    event.entity,
+                    build_custom_query_answer(event.packet.transaction_id, true),
+                ));
                 continue;
             };
 
-            let client = Client::new();
+            let client = reqwest::Client::new();
             let token = access_token.lock().clone();
             let uuid = account.uuid_or_offline();
             let account = account.clone();
-            let transaction_id = packet.transaction_id;
-            let tx = queue.tx.clone();
+            let transaction_id = event.packet.transaction_id;
 
-            let _handle = tokio::spawn(async move {
-                let result = match join_with_server_id_hash(&client, &token, &uuid, &hash).await {
+            let task_pool = IoTaskPool::get();
+            let task = task_pool.spawn(async move {
+                let res = match join_with_server_id_hash(&client, &token, &uuid, &hash).await {
                     Ok(()) => Ok(()), /* Successfully Authenticated */
                     Err(InvalidSession | ForbiddenOperation) => {
                         if let Err(error) = account.refresh().await {
                             error!("Failed to refresh account: {error}");
-                            return;
+                            return None;
                         }
 
                         /* Retry after refreshing */
@@ -207,15 +210,42 @@ impl ViaVersionPlugin {
                     Err(error) => Err(error),
                 };
 
-                /* Send directly instead of SendLoginPacketEvent because of lifetimes */
-                let _ = tx.send(ServerboundLoginPacket::CustomQueryAnswer(
-                    ServerboundCustomQueryAnswer {
-                        transaction_id,
-                        data: Some(vec![u8::from(result.is_ok())].into()),
-                    },
-                ));
+                Some(build_custom_query_answer(transaction_id, res.is_ok()))
             });
+            commands
+                .entity(event.entity)
+                .insert(OpenAuthModJoinTask(task));
         }
+    }
+
+    fn poll_all_oam_join_tasks(
+        mut commands: Commands,
+        mut tasks: Query<(Entity, &mut OpenAuthModJoinTask)>,
+    ) {
+        for (entity, mut task) in tasks.iter_mut() {
+            let Some(res) = future::block_on(future::poll_once(&mut task.0)) else {
+                continue;
+            };
+
+            commands.entity(entity).remove::<OpenAuthModJoinTask>();
+
+            let Some(packet) = res else {
+                error!("Failed to do Mojang auth for openauthmod, not sending response");
+                continue;
+            };
+
+            commands.trigger(SendLoginPacketEvent::new(entity, packet))
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct OpenAuthModJoinTask(Task<Option<ServerboundCustomQueryAnswer>>);
+
+fn build_custom_query_answer(transaction_id: u32, success: bool) -> ServerboundCustomQueryAnswer {
+    ServerboundCustomQueryAnswer {
+        transaction_id,
+        data: Some(vec![u8::from(success)].into()),
     }
 }
 
