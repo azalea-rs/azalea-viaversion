@@ -27,7 +27,7 @@ use tokio::{
     net::TcpListener,
     process::Command,
 };
-use tracing::{error, trace};
+use tracing::{error, trace, warn};
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 2);
@@ -180,7 +180,7 @@ impl ViaVersionPlugin {
             event.disabled = true;
 
             let Some(access_token) = &account.access_token else {
-                error!("Server is online-mode, but our account is offline-mode");
+                warn!("The server tried to make us authenticate, but our account is offline-mode");
                 commands.trigger(SendLoginPacketEvent::new(
                     event.entity,
                     build_custom_query_answer(event.packet.transaction_id, true),
