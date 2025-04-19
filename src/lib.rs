@@ -196,19 +196,25 @@ impl ViaVersionPlugin {
 
             let task_pool = IoTaskPool::get();
             let task = task_pool.spawn(async move {
-                let res = match join_with_server_id_hash(&client, &token, &uuid, &hash).await {
-                    Ok(()) => Ok(()), /* Successfully Authenticated */
-                    Err(InvalidSession | ForbiddenOperation) => {
-                        if let Err(error) = account.refresh().await {
-                            error!("Failed to refresh account: {error}");
-                            return None;
-                        }
+                // joining servers uses tokio, but we poll the task with `futures`
+                let res = async_compat::Compat::new(async {
+                    Some(
+                        match join_with_server_id_hash(&client, &token, &uuid, &hash).await {
+                            Ok(()) => Ok(()), /* Successfully Authenticated */
+                            Err(InvalidSession | ForbiddenOperation) => {
+                                if let Err(error) = account.refresh().await {
+                                    error!("Failed to refresh account: {error}");
+                                    return None;
+                                }
 
-                        /* Retry after refreshing */
-                        join_with_server_id_hash(&client, &token, &uuid, &hash).await
-                    }
-                    Err(error) => Err(error),
-                };
+                                /* Retry after refreshing */
+                                join_with_server_id_hash(&client, &token, &uuid, &hash).await
+                            }
+                            Err(error) => Err(error),
+                        },
+                    )
+                })
+                .await?;
 
                 Some(build_custom_query_answer(transaction_id, res.is_ok()))
             });

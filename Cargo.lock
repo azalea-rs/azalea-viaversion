@@ -505,6 +505,7 @@ name = "azalea-viaversion"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-compat",
  "azalea",
  "bevy_tasks",
  "futures-util",
