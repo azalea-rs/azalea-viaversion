@@ -7,13 +7,16 @@ An [Azalea] plugin using [ViaProxy] to support connecting to every Minecraft ser
 Add the `ViaVersionPlugin` to your `ClientBuilder` or `SwarmBuilder`.
 
 ```rust
-#[tokio::main]
-fn main() {
-    let plugin = ViaVersionPlugin::start("1.21.4").await;
-    let builder = ClientBuilder::new().add_plugins(plugin);
+use azalea::prelude::*;
+use azalea_viaversion::ViaVersionPlugin;
 
-    let account = Account::offline("Azalea");
-    builder.start(account, "localhost").await.unwrap();
+#[tokio::main]
+async fn main() {
+    ClientBuilder::new()
+        .add_plugins(ViaVersionPlugin::start("1.21.4").await)
+        .start(Account::offline("Azalea"), "localhost")
+        .await
+        .unwrap();
 }
 ```
 
