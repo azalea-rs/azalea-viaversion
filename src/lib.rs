@@ -1,24 +1,21 @@
 use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
-use azalea::app::Update;
-use azalea::join::StartJoinServerEvent;
-use azalea::packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent};
-use azalea::protocol::connect::Proxy;
 use azalea::{
-    app::{App, Plugin, Startup},
+    app::{App, Plugin, Startup, prelude::*},
     auth::sessionserver::{
         ClientSessionServerError::{ForbiddenOperation, InvalidSession},
         join_with_server_id_hash,
     },
+    bevy_tasks::{IoTaskPool, Task, futures_lite::future},
     buf::AzaleaRead,
     ecs::prelude::*,
+    join::StartJoinServerEvent,
+    packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::{ServerAddress, packets::login::ServerboundCustomQueryAnswer},
+    protocol::{ServerAddress, connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
     swarm::Swarm,
 };
-use bevy_tasks::futures_lite::future;
-use bevy_tasks::{IoTaskPool, Task};
 use futures_util::StreamExt;
 use kdam::{BarExt, tqdm};
 use lazy_regex::regex_captures;

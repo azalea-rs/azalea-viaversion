@@ -160,7 +160,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 [[package]]
 name = "azalea"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-auth",
  "azalea-block",
@@ -178,7 +178,7 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_log",
- "bevy_tasks 0.16.0",
+ "bevy_tasks",
  "derive_more 2.0.1",
  "futures",
  "futures-lite",
@@ -197,7 +197,7 @@ dependencies = [
 [[package]]
 name = "azalea-auth"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf",
  "azalea-crypto",
@@ -217,7 +217,7 @@ dependencies = [
 [[package]]
 name = "azalea-block"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-block-macros",
  "azalea-buf",
@@ -227,7 +227,7 @@ dependencies = [
 [[package]]
 name = "azalea-block-macros"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -237,7 +237,7 @@ dependencies = [
 [[package]]
 name = "azalea-brigadier"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf",
  "azalea-chat",
@@ -247,7 +247,7 @@ dependencies = [
 [[package]]
 name = "azalea-buf"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf-macros",
  "byteorder",
@@ -261,7 +261,7 @@ dependencies = [
 [[package]]
 name = "azalea-buf-macros"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -271,7 +271,7 @@ dependencies = [
 [[package]]
 name = "azalea-chat"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf",
  "azalea-language",
@@ -285,7 +285,7 @@ dependencies = [
 [[package]]
 name = "azalea-client"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "async-compat",
  "azalea-auth",
@@ -302,8 +302,9 @@ dependencies = [
  "azalea-world",
  "bevy_app",
  "bevy_ecs",
- "bevy_tasks 0.16.0",
+ "bevy_tasks",
  "bevy_time",
+ "chrono",
  "derive_more 2.0.1",
  "minecraft_folder_path",
  "parking_lot",
@@ -320,7 +321,7 @@ dependencies = [
 [[package]]
 name = "azalea-core"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf",
  "azalea-chat",
@@ -337,7 +338,7 @@ dependencies = [
 [[package]]
 name = "azalea-crypto"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "aes",
  "azalea-buf",
@@ -354,7 +355,7 @@ dependencies = [
 [[package]]
 name = "azalea-entity"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-block",
  "azalea-buf",
@@ -378,7 +379,7 @@ dependencies = [
 [[package]]
 name = "azalea-inventory"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf",
  "azalea-chat",
@@ -394,7 +395,7 @@ dependencies = [
 [[package]]
 name = "azalea-inventory-macros"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -404,7 +405,7 @@ dependencies = [
 [[package]]
 name = "azalea-language"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "compact_str",
  "serde",
@@ -414,7 +415,7 @@ dependencies = [
 [[package]]
 name = "azalea-physics"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-block",
  "azalea-core",
@@ -431,7 +432,7 @@ dependencies = [
 [[package]]
 name = "azalea-protocol"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "async-recursion",
  "azalea-auth",
@@ -466,7 +467,7 @@ dependencies = [
 [[package]]
 name = "azalea-protocol-macros"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -476,7 +477,7 @@ dependencies = [
 [[package]]
 name = "azalea-registry"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-buf",
  "azalea-registry-macros",
@@ -487,7 +488,7 @@ dependencies = [
 [[package]]
 name = "azalea-registry-macros"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "quote",
  "syn",
@@ -500,7 +501,6 @@ dependencies = [
  "anyhow",
  "async-compat",
  "azalea",
- "bevy_tasks 0.15.3",
  "futures-util",
  "kdam",
  "lazy-regex",
@@ -515,7 +515,7 @@ dependencies = [
 [[package]]
 name = "azalea-world"
 version = "0.12.0+mc1.21.5"
-source = "git+https://github.com/azalea-rs/azalea#a8e76a0bff182bbcb7b40e9283f78efbac7e630c"
+source = "git+https://github.com/azalea-rs/azalea#1493c06de597fc320b79212d133f08c678763a6b"
 dependencies = [
  "azalea-block",
  "azalea-buf",
@@ -568,7 +568,7 @@ dependencies = [
  "bevy_ecs",
  "bevy_platform",
  "bevy_reflect",
- "bevy_tasks 0.16.0",
+ "bevy_tasks",
  "bevy_utils",
  "cfg-if",
  "console_error_panic_hook",
@@ -603,7 +603,7 @@ dependencies = [
  "bevy_platform",
  "bevy_ptr",
  "bevy_reflect",
- "bevy_tasks 0.16.0",
+ "bevy_tasks",
  "bevy_utils",
  "bitflags",
  "bumpalo",
@@ -723,19 +723,6 @@ dependencies = [
  "quote",
  "syn",
  "uuid",
-]
-
-[[package]]
-name = "bevy_tasks"
-version = "0.15.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "028630ddc355563bd567df1076db3515858aa26715ddf7467d2086f9b40e5ab1"
-dependencies = [
- "async-executor",
- "futures-channel",
- "futures-lite",
- "pin-project",
- "wasm-bindgen-futures",
 ]
 
 [[package]]
