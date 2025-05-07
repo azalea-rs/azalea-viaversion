@@ -1,6 +1,10 @@
+use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
+
 use anyhow::{Context, Result};
 use azalea::app::Update;
+use azalea::join::StartJoinServerEvent;
 use azalea::packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent};
+use azalea::protocol::connect::Proxy;
 use azalea::{
     app::{App, Plugin, Startup},
     auth::sessionserver::{
@@ -20,7 +24,6 @@ use kdam::{BarExt, tqdm};
 use lazy_regex::regex_captures;
 use reqwest::IntoUrl;
 use semver::Version;
-use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 use tokio::{
     fs::File,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -37,6 +40,7 @@ const VIA_PROXY_VERSION: Version = Version::new(3, 4, 1);
 pub struct ViaVersionPlugin {
     bind_addr: SocketAddr,
     mc_version: String,
+    proxy: Option<azalea::protocol::connect::Proxy>,
 }
 
 impl Plugin for ViaVersionPlugin {
@@ -48,6 +52,7 @@ impl Plugin for ViaVersionPlugin {
                 (
                     Self::handle_oauth.before(azalea::login::reply_to_custom_queries),
                     Self::poll_all_oam_join_tasks,
+                    Self::warn_about_proxy.after(azalea::auto_reconnect::rejoin_after_delay),
                 ),
             );
     }
@@ -57,15 +62,65 @@ impl ViaVersionPlugin {
     /// Download and start a ViaProxy instance.
     ///
     /// # Panics
-    /// Will panic if java fails to parse, files fail to download, or ViaProxy fails to start.
+    ///
+    /// Will panic if Java fails to parse, files fail to download, or ViaProxy
+    /// fails to start.
     pub async fn start(mc_version: impl ToString) -> Self {
+        let bind_addr = try_find_free_addr().await.expect("Failed to bind");
+        let mc_version = mc_version.to_string();
+
+        let plugin = Self {
+            bind_addr,
+            mc_version,
+            proxy: None,
+        };
+        plugin.start_with_self().await
+    }
+
+    /// Same as [`Self::start`], but allows you to pass a Socks5 proxy.
+    ///
+    /// This is necessary if you want to use Azalea with a proxy and ViaVersion
+    /// at the same time. This is incompatible with `JoinOpts::proxy`.
+    ///
+    /// ```rs,no_run
+    /// # use azalea::prelude::*;
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     let account = Account::offline("bot");
+    ///
+    ///     ClientBuilder::new()
+    ///         .set_handler(handle)
+    ///         .add_plugins(
+    ///             ViaVersionPlugin::start_with_proxy(
+    ///                 "1.21.5",
+    ///                 Proxy::new("10.124.1.186:1080".parse().unwrap(), None),
+    ///             )
+    ///             .await,
+    ///         )
+    ///         .start(account, "6.tcp.ngrok.io:14910")
+    ///         .await
+    ///         .unwrap();
+    /// }
+    /// ```
+    pub async fn start_with_proxy(mc_version: impl ToString, proxy: Proxy) -> Self {
+        let bind_addr = try_find_free_addr().await.expect("Failed to bind");
+        let mc_version = mc_version.to_string();
+
+        let plugin = Self {
+            bind_addr,
+            mc_version,
+            proxy: Some(proxy),
+        };
+        plugin.start_with_self().await
+    }
+
+    async fn start_with_self(self) -> Self {
         let Some(java_version) = try_find_java_version().await.expect("Failed to parse") else {
             panic!(
                 "Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager."
             );
         };
 
-        let mc_version = mc_version.to_string();
         let mc_path = minecraft_folder_path::minecraft_dir().expect("Unsupported Platform");
 
         #[rustfmt::skip]
@@ -88,17 +143,24 @@ impl ViaVersionPlugin {
             .await
             .expect("Failed to download ViaProxyOpenAuthMod");
 
-        let bind_addr = try_find_free_addr().await.expect("Failed to bind");
-        let mut child = Command::new("java")
+        let mut command = Command::new("java");
+        command
             /* Java Args */
             .args(["-jar", &via_proxy_name])
             /* ViaProxy Args */
             .arg("cli")
             .args(["--auth-method", "OPENAUTHMOD"])
-            .args(["--bind-address", &bind_addr.to_string()])
+            .args(["--bind-address", &self.bind_addr.to_string()])
             .args(["--target-address", "127.0.0.1:0"])
-            .args(["--target-version", &mc_version])
-            .args(["--wildcard-domain-handling", "INTERNAL"])
+            .args(["--target-version", &self.mc_version])
+            .args(["--wildcard-domain-handling", "INTERNAL"]);
+
+        if let Some(proxy) = &self.proxy {
+            trace!("Starting ViaProxy with proxy: {proxy}");
+            command.args(["--backend-proxy-url", &proxy.to_string()]);
+        }
+
+        let mut child = command
             .current_dir(via_proxy_path)
             .stdout(Stdio::piped())
             .spawn()
@@ -124,18 +186,15 @@ impl ViaVersionPlugin {
         /* Wait until ViaProxy is ready */
         let _ = rx.changed().await;
 
-        Self {
-            bind_addr,
-            mc_version,
-        }
+        self
     }
 
     #[allow(clippy::needless_pass_by_value)]
     pub fn handle_change_address(plugin: Res<Self>, swarm: Res<Swarm>) {
         let ServerAddress { host, port } = swarm.address.read().clone();
 
-        // sadly, the first part of the resolved address is unused as viaproxy will resolve it on its own
-        // more info: https://github.com/ViaVersion/ViaProxy/issues/338
+        // sadly, the first part of the resolved address is unused as viaproxy will
+        // resolve it on its own more info: https://github.com/ViaVersion/ViaProxy/issues/338
         let data_after_null_byte = host.split_once('\x07').map(|(_, data)| data);
 
         let mut connection_host = format!(
@@ -176,7 +235,8 @@ impl ViaVersionPlugin {
                 continue;
             };
 
-            // this makes it so azalea doesn't reply to the query so we can handle it ourselves
+            // this makes it so azalea doesn't reply to the query so we can handle it
+            // ourselves
             event.disabled = true;
 
             let Some(access_token) = &account.access_token else {
@@ -241,6 +301,17 @@ impl ViaVersionPlugin {
             };
 
             commands.trigger(SendLoginPacketEvent::new(entity, packet))
+        }
+    }
+
+    fn warn_about_proxy(mut events: EventReader<StartJoinServerEvent>) {
+        for event in events.read() {
+            if event.connect_opts.proxy.is_some() {
+                warn!(
+                    "You are using JoinOpts::proxy and ViaVersionPlugin at the same time, which is not a supported configuration. \
+                    Please set your proxy with `ViaVersionPlugin::start_with_proxy` instead."
+                );
+            }
         }
     }
 }

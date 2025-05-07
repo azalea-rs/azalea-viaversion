@@ -1,7 +1,9 @@
-//! A swarm bot that allows you to modify the accounts being used and the target version and the server address from the CLI.
+//! A swarm bot that allows you to modify the accounts being used and the target
+//! version and the server address from the CLI.
 //!
 //! Example usage:
-//! cargo r -r --example cli -- --account bot --server localhost --version 1.21.5
+//! cargo r -r --example cli -- --account bot --server localhost --version
+//! 1.21.5
 
 use std::{env, process, time::Duration};
 

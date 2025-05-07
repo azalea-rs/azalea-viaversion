@@ -1,7 +1,9 @@
-//! A super basic example of adding a `ViaVersionPlugin` to a `ClientBuilder` and connecting to a localhost server.
+//! A super basic example of adding a `ViaVersionPlugin` to a `ClientBuilder`
+//! and connecting to a localhost server.
 //!
 //! # Note
-//! The `never_type` feature is completely optional, see how the `swarm` example does not use it.
+//! The `never_type` feature is completely optional, see how the `swarm` example
+//! does not use it.
 #![feature(never_type)]
 
 use azalea::{StartError, prelude::*};

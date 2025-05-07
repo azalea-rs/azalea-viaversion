@@ -1,7 +1,8 @@
 //! An [`azalea`] bot that repeats chat messages sent by other players.
 //!
 //! # Note
-//! The `never_type` feature is completely optional, see how the `swarm` example does not use it.
+//! The `never_type` feature is completely optional, see how the `swarm` example
+//! does not use it.
 #![feature(never_type)]
 
 use azalea::{NoState, StartError, prelude::*};

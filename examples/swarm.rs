@@ -1,4 +1,5 @@
-//! A super basic example of adding a `ViaVersionPlugin` to a `SwarmBuilder` and connecting to a localhost server.
+//! A super basic example of adding a `ViaVersionPlugin` to a `SwarmBuilder` and
+//! connecting to a localhost server.
 
 use azalea::{prelude::*, swarm::SwarmBuilder};
 use azalea_viaversion::ViaVersionPlugin;
