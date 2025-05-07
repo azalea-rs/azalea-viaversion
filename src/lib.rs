@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use azalea::app::Update;
+use azalea::bevy_tasks::{IoTaskPool, Task, futures_lite::future};
 use azalea::packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent};
 use azalea::{
     app::{App, Plugin, Startup},
@@ -13,8 +14,6 @@ use azalea::{
     protocol::{ServerAddress, packets::login::ServerboundCustomQueryAnswer},
     swarm::Swarm,
 };
-use bevy_tasks::futures_lite::future;
-use bevy_tasks::{IoTaskPool, Task};
 use futures_util::StreamExt;
 use kdam::{BarExt, tqdm};
 use lazy_regex::regex_captures;
