@@ -2,8 +2,9 @@
 //! version and the server address from the CLI.
 //!
 //! Example usage:
-//! cargo r -r --example cli -- --account bot --server localhost --version
-//! 1.21.5
+//! ```sh
+//! cargo r -r --example cli -- --account bot --server localhost --version 1.21.5
+//! ```
 
 use std::{env, process, time::Duration};
 
