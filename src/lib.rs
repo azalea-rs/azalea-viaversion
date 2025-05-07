@@ -82,8 +82,9 @@ impl ViaVersionPlugin {
     /// This is necessary if you want to use Azalea with a proxy and ViaVersion
     /// at the same time. This is incompatible with `JoinOpts::proxy`.
     ///
-    /// ```rs,no_run
-    /// # use azalea::prelude::*;
+    /// ```no_run
+    /// # use azalea::{prelude::*, protocol::connect::Proxy};
+    /// # use azalea_viaversion::ViaVersionPlugin;;
     /// #[tokio::main]
     /// async fn main() {
     ///     let account = Account::offline("bot");
@@ -101,6 +102,7 @@ impl ViaVersionPlugin {
     ///         .await
     ///         .unwrap();
     /// }
+    /// # async fn handle(mut bot: Client, event: Event, state: azalea::NoState) { }
     /// ```
     pub async fn start_with_proxy(mc_version: impl ToString, proxy: Proxy) -> Self {
         let bind_addr = try_find_free_addr().await.expect("Failed to bind");
