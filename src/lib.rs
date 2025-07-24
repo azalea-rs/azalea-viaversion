@@ -2,22 +2,22 @@ use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
 use azalea::{
-    app::{App, Plugin, Startup, prelude::*},
+    app::{prelude::*, App, Plugin, Startup},
     auth::sessionserver::{
-        ClientSessionServerError::{ForbiddenOperation, InvalidSession},
         join_with_server_id_hash,
+        ClientSessionServerError::{ForbiddenOperation, InvalidSession},
     },
-    bevy_tasks::{IoTaskPool, Task, futures_lite::future},
+    bevy_tasks::{futures_lite::future, IoTaskPool, Task},
     buf::AzaleaRead,
     ecs::prelude::*,
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::{ServerAddress, connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
+    protocol::{connect::Proxy, packets::login::ServerboundCustomQueryAnswer, ServerAddress},
     swarm::Swarm,
 };
 use futures_util::StreamExt;
-use kdam::{BarExt, tqdm};
+use kdam::{tqdm, BarExt};
 use lazy_regex::regex_captures;
 use reqwest::IntoUrl;
 use semver::Version;
@@ -31,13 +31,13 @@ use tracing::{error, trace, warn};
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 2);
-const VIA_PROXY_VERSION: Version = Version::new(3, 4, 2);
+const VIA_PROXY_VERSION: Version = Version::new(3, 4, 4);
 
 #[derive(Clone, Resource)]
 pub struct ViaVersionPlugin {
     bind_addr: SocketAddr,
     mc_version: String,
-    proxy: Option<azalea::protocol::connect::Proxy>,
+    proxy: Option<Proxy>,
 }
 
 impl Plugin for ViaVersionPlugin {
@@ -81,7 +81,7 @@ impl ViaVersionPlugin {
     ///
     /// ```no_run
     /// # use azalea::{prelude::*, protocol::connect::Proxy};
-    /// # use azalea_viaversion::ViaVersionPlugin;;
+    /// # use azalea_viaversion::ViaVersionPlugin;
     /// #[tokio::main]
     /// async fn main() {
     ///     let account = Account::offline("bot");
