@@ -2,22 +2,22 @@ use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
 use azalea::{
-    app::{prelude::*, App, Plugin, Startup},
+    app::{App, Plugin, Startup, prelude::*},
     auth::sessionserver::{
-        join_with_server_id_hash,
         ClientSessionServerError::{ForbiddenOperation, InvalidSession},
+        join_with_server_id_hash,
     },
-    bevy_tasks::{futures_lite::future, IoTaskPool, Task},
+    bevy_tasks::{IoTaskPool, Task, futures_lite::future},
     buf::AzaleaRead,
     ecs::prelude::*,
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::{connect::Proxy, packets::login::ServerboundCustomQueryAnswer, ServerAddress},
+    protocol::{ServerAddress, connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
     swarm::Swarm,
 };
 use futures_util::StreamExt;
-use kdam::{tqdm, BarExt};
+use kdam::{BarExt, tqdm};
 use lazy_regex::regex_captures;
 use reqwest::IntoUrl;
 use semver::Version;
@@ -31,7 +31,8 @@ use tracing::{error, trace, warn};
 
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 2);
-const VIA_PROXY_VERSION: Version = Version::new(3, 4, 4);
+// https://github.com/ViaVersion/ViaProxy/releases
+const VIA_PROXY_VERSION: Version = Version::new(3, 4, 5);
 
 #[derive(Clone, Resource)]
 pub struct ViaVersionPlugin {
@@ -49,7 +50,9 @@ impl Plugin for ViaVersionPlugin {
                 (
                     Self::handle_oauth.before(azalea::login::reply_to_custom_queries),
                     Self::poll_all_oam_join_tasks,
-                    Self::warn_about_proxy.after(azalea::auto_reconnect::rejoin_after_delay),
+                    Self::warn_about_proxy
+                        .after(azalea::auto_reconnect::rejoin_after_delay)
+                        .before(azalea::join::handle_start_join_server_event),
                 ),
             );
     }
@@ -216,7 +219,7 @@ impl ViaVersionPlugin {
 
     pub fn handle_oauth(
         mut commands: Commands,
-        mut events: EventMutator<ReceiveCustomQueryEvent>,
+        mut events: MessageMutator<ReceiveCustomQueryEvent>,
         mut query: Query<&Account>,
     ) {
         for event in events.read() {
@@ -303,7 +306,7 @@ impl ViaVersionPlugin {
         }
     }
 
-    fn warn_about_proxy(mut events: EventReader<StartJoinServerEvent>) {
+    fn warn_about_proxy(mut events: MessageMutator<StartJoinServerEvent>) {
         for event in events.read() {
             if event.connect_opts.proxy.is_some() {
                 warn!(

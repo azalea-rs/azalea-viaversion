@@ -15,8 +15,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dependencies]
 anyhow = "1.0"
-async-compat = "0.2.4"
-azalea = { git = "https://github.com/azalea-rs/azalea" }
+async-compat = "0.2.5"
+azalea = { git = "https://github.com/azalea-rs/azalea", default-features = false }
 futures-util = "0.3"
 kdam = "0.6"
 lazy-regex = "3.4"
@@ -26,5 +26,5 @@ reqwest = { version = "0.12", default-features = false, features = [
   "stream",
 ] }
 semver = "1.0"
-tokio = { version = "1.44.2", features = ["process"] }
+tokio = { version = "1.47.1", features = ["process"] }
 tracing = "0.1"

@@ -15,5 +15,5 @@ async fn main() {
 
     // Start the client and connect to a localhost server
     let acc = Account::offline("Azalea");
-    builder.add_account(acc).start("localhost").await.unwrap()
+    builder.add_account(acc).start("localhost").await.unwrap();
 }

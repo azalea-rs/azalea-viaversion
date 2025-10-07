@@ -1,16 +1,11 @@
 //! A super basic example of adding a `ViaVersionPlugin` to a `ClientBuilder`
 //! and connecting to a localhost server.
-//!
-//! # Note
-//! The `never_type` feature is completely optional, see how the `swarm` example
-//! does not use it.
-#![feature(never_type)]
 
-use azalea::{StartError, prelude::*};
+use azalea::{StartError, app::AppExit, prelude::*};
 use azalea_viaversion::ViaVersionPlugin;
 
 #[tokio::main]
-async fn main() -> Result<!, StartError> {
+async fn main() -> Result<AppExit, StartError> {
     tracing_subscriber::fmt::init();
 
     // Initialize a 1.21.4 ViaProxy instance
