@@ -32,7 +32,7 @@ use tracing::{error, trace, warn};
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 2);
 // https://github.com/ViaVersion/ViaProxy/releases
-const VIA_PROXY_VERSION: Version = Version::new(3, 4, 5);
+const VIA_PROXY_VERSION: Version = Version::new(3, 4, 6);
 
 #[derive(Clone, Resource)]
 pub struct ViaVersionPlugin {
