@@ -302,7 +302,11 @@ impl ViaVersionPlugin {
                 continue;
             };
 
-            commands.trigger(SendLoginPacketEvent::new(entity, packet))
+            commands.trigger(SendLoginPacketEvent::new(entity, packet));
+            // inserting this is necessary to make azalea send the chat signing certs
+            commands
+                .entity(entity)
+                .insert(azalea::login::IsAuthenticated);
         }
     }
 
