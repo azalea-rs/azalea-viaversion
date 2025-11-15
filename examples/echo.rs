@@ -28,7 +28,7 @@ async fn handle(bot: Client, event: Event, _: NoState) -> anyhow::Result<()> {
             // Split the message into the sender and message content
             let (sender, message) = message.split_sender_and_content();
             // If the sender is not the bot, repeat the message
-            if sender.is_none_or(|sender| sender != bot.username()) {
+            if sender.is_some_and(|sender| sender != bot.username()) {
                 bot.chat(&message);
             }
         }
