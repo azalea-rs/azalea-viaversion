@@ -5,11 +5,11 @@
 //! does not use it.
 #![feature(never_type)]
 
-use azalea::{NoState, StartError, app::AppExit, prelude::*};
+use azalea::{NoState, app::AppExit, prelude::*};
 use azalea_viaversion::ViaVersionPlugin;
 
 #[tokio::main]
-async fn main() -> Result<AppExit, StartError> {
+async fn main() -> AppExit {
     tracing_subscriber::fmt::init();
 
     // Initialize a 1.21.4 ViaProxy instance

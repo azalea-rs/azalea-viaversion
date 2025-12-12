@@ -1,6 +1,7 @@
 use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
+use azalea::protocol::address::{ResolvedAddr, ServerAddr};
 use azalea::{
     app::{App, Plugin, Startup, prelude::*},
     auth::sessionserver::{
@@ -13,7 +14,7 @@ use azalea::{
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::{ServerAddress, connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
+    protocol::{connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
     swarm::Swarm,
 };
 use futures_util::StreamExt;
@@ -99,8 +100,7 @@ impl ViaVersionPlugin {
     ///             .await,
     ///         )
     ///         .start(account, "6.tcp.ngrok.io:14910")
-    ///         .await
-    ///         .unwrap();
+    ///         .await;
     /// }
     /// # async fn handle(mut bot: Client, event: Event, state: azalea::NoState) { }
     /// ```
@@ -193,7 +193,8 @@ impl ViaVersionPlugin {
 
     #[allow(clippy::needless_pass_by_value)]
     pub fn handle_change_address(plugin: Res<Self>, swarm: Res<Swarm>) {
-        let ServerAddress { host, port } = swarm.address.read().clone();
+        let ResolvedAddr { server, socket } = swarm.address.read().clone();
+        let ServerAddr { host, port } = server;
 
         // sadly, the first part of the resolved address is unused as viaproxy will
         // resolve it on its own more info: https://github.com/ViaVersion/ViaProxy/issues/338
@@ -208,13 +209,16 @@ impl ViaVersionPlugin {
             connection_host.push_str(data);
         }
 
-        *swarm.address.write() = ServerAddress {
-            port,
-            host: connection_host,
+        *swarm.address.write() = ResolvedAddr {
+            server: ServerAddr {
+                port,
+                host: connection_host,
+            },
+            socket,
         };
 
         /* Must wait to be written until after reading above */
-        *swarm.resolved_address.write() = plugin.bind_addr;
+        // *swarm.resolved_address.write() = plugin.bind_addr;
     }
 
     pub fn handle_oauth(
@@ -312,7 +316,7 @@ impl ViaVersionPlugin {
 
     fn warn_about_proxy(mut events: MessageMutator<StartJoinServerEvent>) {
         for event in events.read() {
-            if event.connect_opts.proxy.is_some() {
+            if event.connect_opts.server_proxy.is_some() {
                 warn!(
                     "You are using JoinOpts::proxy and ViaVersionPlugin at the same time, which is not a supported configuration. \
                     Please set your proxy with `ViaVersionPlugin::start_with_proxy` instead."

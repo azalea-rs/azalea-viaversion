@@ -1,11 +1,11 @@
 //! A super basic example of adding a `ViaVersionPlugin` to a `ClientBuilder`
 //! and connecting to a localhost server.
 
-use azalea::{StartError, app::AppExit, prelude::*};
+use azalea::{app::AppExit, prelude::*};
 use azalea_viaversion::ViaVersionPlugin;
 
 #[tokio::main]
-async fn main() -> Result<AppExit, StartError> {
+async fn main() -> AppExit {
     tracing_subscriber::fmt::init();
 
     // Initialize a 1.21.4 ViaProxy instance

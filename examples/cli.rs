@@ -35,8 +35,7 @@ async fn main() {
         .add_plugins(plugin)
         .join_delay(Duration::from_millis(100))
         .start(args.server)
-        .await
-        .unwrap();
+        .await;
 }
 
 #[derive(Debug, Clone, Default)]
