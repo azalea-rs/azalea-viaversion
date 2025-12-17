@@ -19,7 +19,7 @@ use azalea::{
 };
 use futures_util::StreamExt;
 use kdam::{BarExt, tqdm};
-use lazy_regex::regex_captures;
+use lazy_regex::{regex_captures, regex_replace_all};
 use reqwest::IntoUrl;
 use semver::Version;
 use tokio::{
@@ -33,7 +33,7 @@ use tracing::{error, trace, warn};
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 2);
 // https://github.com/ViaVersion/ViaProxy/releases
-const VIA_PROXY_VERSION: Version = Version::new(3, 4, 6);
+const VIA_PROXY_VERSION: Version = Version::new(3, 4, 7);
 
 #[derive(Clone, Resource)]
 pub struct ViaVersionPlugin {
@@ -178,7 +178,15 @@ impl ViaVersionPlugin {
                 line.clear();
                 reader.read_line(&mut line).await.expect("Failed to read");
 
-                trace!("{}", line.trim());
+                let line = line.trim();
+                // strip ansi escape codes
+                let line = regex_replace_all!(r"(\x1b\[[0-9;]*m)", line, |_, _| "");
+
+                if line.contains("/WARN]") {
+                    warn!("{line}");
+                } else {
+                    trace!("{line}");
+                }
                 if line.contains("Finished mapping loading") {
                     let _ = tx.send(());
                 }
@@ -193,7 +201,7 @@ impl ViaVersionPlugin {
 
     #[allow(clippy::needless_pass_by_value)]
     pub fn handle_change_address(plugin: Res<Self>, swarm: Res<Swarm>) {
-        let ResolvedAddr { server, socket } = swarm.address.read().clone();
+        let ResolvedAddr { server, .. } = swarm.address.read().clone();
         let ServerAddr { host, port } = server;
 
         // sadly, the first part of the resolved address is unused as viaproxy will
@@ -214,11 +222,10 @@ impl ViaVersionPlugin {
                 port,
                 host: connection_host,
             },
-            socket,
+            socket: plugin.bind_addr,
         };
 
         /* Must wait to be written until after reading above */
-        // *swarm.resolved_address.write() = plugin.bind_addr;
     }
 
     pub fn handle_oauth(
