@@ -14,7 +14,7 @@ use azalea::{
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::{connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
+    protocol::packets::login::ServerboundCustomQueryAnswer,
     swarm::Swarm,
 };
 use futures_util::StreamExt;
@@ -39,7 +39,7 @@ const VIA_PROXY_VERSION: Version = Version::new(3, 4, 7);
 pub struct ViaVersionPlugin {
     bind_addr: SocketAddr,
     mc_version: String,
-    proxy: Option<Proxy>,
+    proxy: Option<String>,
 }
 
 impl Plugin for ViaVersionPlugin {
@@ -104,7 +104,7 @@ impl ViaVersionPlugin {
     /// }
     /// # async fn handle(mut bot: Client, event: Event, state: azalea::NoState) { }
     /// ```
-    pub async fn start_with_proxy(mc_version: impl ToString, proxy: Proxy) -> Self {
+    pub async fn start_with_proxy(mc_version: impl ToString, proxy: String) -> Self {
         let bind_addr = try_find_free_addr().await.expect("Failed to bind");
         let mc_version = mc_version.to_string();
 
@@ -159,7 +159,7 @@ impl ViaVersionPlugin {
 
         if let Some(proxy) = &self.proxy {
             trace!("Starting ViaProxy with proxy: {proxy}");
-            command.args(["--backend-proxy-url", &proxy.to_string()]);
+            command.args(["--backend-proxy-url", &proxy]);
         }
 
         let mut child = command
