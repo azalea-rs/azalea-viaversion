@@ -78,7 +78,7 @@ impl ViaVersionPlugin {
         plugin.start_with_self().await
     }
 
-    /// Same as [`Self::start`], but allows you to pass any proxy that ViaProxy supports (SOCKS4, SOCKS5, HTTP, HTTPS).
+    /// Same as [`Self::start`], but allows you to pass any proxy that ViaProxy [supports](https://github.com/ViaVersion/ViaProxy/blob/v3.4.7/src/main/java/net/raphimc/viaproxy/protocoltranslator/viaproxy/ViaProxyConfig.java#L105).
     ///
     /// This is necessary if you want to use Azalea with a proxy and ViaVersion
     /// at the same time. This is incompatible with `JoinOpts::proxy`.
@@ -95,7 +95,7 @@ impl ViaVersionPlugin {
     ///         .add_plugins(
     ///             ViaVersionPlugin::start_with_proxy(
     ///                 "1.21.5",
-    ///                 "10.124.1.186:1080",
+    ///                 "socks5://10.124.1.186:1080",
     ///             )
     ///             .await,
     ///         )
