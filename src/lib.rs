@@ -159,7 +159,7 @@ impl ViaVersionPlugin {
 
         if let Some(proxy) = &self.proxy {
             trace!("Starting ViaProxy with proxy: {proxy}");
-            command.args(["--backend-proxy-url", &proxy]);
+            command.args(["--backend-proxy-url", proxy]);
         }
 
         let mut child = command
