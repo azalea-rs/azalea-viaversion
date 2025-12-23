@@ -14,7 +14,7 @@ use azalea::{
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::{connect::Proxy, packets::login::ServerboundCustomQueryAnswer},
+    protocol::packets::login::ServerboundCustomQueryAnswer,
     swarm::Swarm,
 };
 use futures_util::StreamExt;
@@ -39,7 +39,7 @@ const VIA_PROXY_VERSION: Version = Version::new(3, 4, 7);
 pub struct ViaVersionPlugin {
     bind_addr: SocketAddr,
     mc_version: String,
-    proxy: Option<Proxy>,
+    proxy: Option<String>,
 }
 
 impl Plugin for ViaVersionPlugin {
@@ -78,7 +78,10 @@ impl ViaVersionPlugin {
         plugin.start_with_self().await
     }
 
-    /// Same as [`Self::start`], but allows you to pass a Socks5 proxy.
+    /// Same as [`Self::start`], but allows you to pass any proxy that ViaProxy supports (SOCKS4, SOCKS5, HTTP, HTTPS).
+    /// Supported formats:
+    /// - type://address:port
+    /// - type://username:password@address:port
     ///
     /// This is necessary if you want to use Azalea with a proxy and ViaVersion
     /// at the same time. This is incompatible with `JoinOpts::proxy`.
@@ -95,7 +98,7 @@ impl ViaVersionPlugin {
     ///         .add_plugins(
     ///             ViaVersionPlugin::start_with_proxy(
     ///                 "1.21.5",
-    ///                 Proxy::new("10.124.1.186:1080".parse().unwrap(), None),
+    ///                 "socks5://10.124.1.186:1080",
     ///             )
     ///             .await,
     ///         )
@@ -104,14 +107,14 @@ impl ViaVersionPlugin {
     /// }
     /// # async fn handle(mut bot: Client, event: Event, state: azalea::NoState) { }
     /// ```
-    pub async fn start_with_proxy(mc_version: impl ToString, proxy: Proxy) -> Self {
+    pub async fn start_with_proxy(mc_version: impl ToString, proxy: &str) -> Self {
         let bind_addr = try_find_free_addr().await.expect("Failed to bind");
         let mc_version = mc_version.to_string();
 
         let plugin = Self {
             bind_addr,
             mc_version,
-            proxy: Some(proxy),
+            proxy: Some(proxy.to_string()),
         };
         plugin.start_with_self().await
     }
@@ -159,7 +162,7 @@ impl ViaVersionPlugin {
 
         if let Some(proxy) = &self.proxy {
             trace!("Starting ViaProxy with proxy: {proxy}");
-            command.args(["--backend-proxy-url", &proxy.to_string()]);
+            command.args(["--backend-proxy-url", proxy]);
         }
 
         let mut child = command
