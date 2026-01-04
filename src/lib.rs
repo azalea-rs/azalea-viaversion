@@ -255,7 +255,7 @@ impl ViaVersionPlugin {
             // ourselves
             event.disabled = true;
 
-            let Some(access_token) = &account.access_token else {
+            let Some(token) = account.access_token() else {
                 warn!("The server tried to make us authenticate, but our account is offline-mode");
                 commands.trigger(SendLoginPacketEvent::new(
                     event.entity,
@@ -265,8 +265,7 @@ impl ViaVersionPlugin {
             };
 
             let client = reqwest::Client::new();
-            let token = access_token.lock().clone();
-            let uuid = account.uuid_or_offline();
+            let uuid = account.uuid();
             let account = account.clone();
             let transaction_id = event.packet.transaction_id;
 
