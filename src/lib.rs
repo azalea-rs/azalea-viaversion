@@ -1,7 +1,6 @@
 use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
-use azalea::protocol::address::{ResolvedAddr, ServerAddr};
 use azalea::{
     app::{App, Plugin, Startup, prelude::*},
     auth::sessionserver::{
@@ -9,12 +8,15 @@ use azalea::{
         join_with_server_id_hash,
     },
     bevy_tasks::{IoTaskPool, Task, futures_lite::future},
-    buf::AzaleaRead,
+    buf::AzBuf,
     ecs::prelude::*,
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
     prelude::*,
-    protocol::packets::login::ServerboundCustomQueryAnswer,
+    protocol::{
+        address::{ResolvedAddr, ServerAddr},
+        packets::login::ServerboundCustomQueryAnswer,
+    },
     swarm::Swarm,
 };
 use futures_util::StreamExt;
@@ -78,8 +80,8 @@ impl ViaVersionPlugin {
         plugin.start_with_self().await
     }
 
-    /// Same as [`Self::start`], but allows you to pass any proxy that ViaProxy supports (SOCKS4, SOCKS5, HTTP, HTTPS).
-    /// Supported formats:
+    /// Same as [`Self::start`], but allows you to pass any proxy that ViaProxy
+    /// supports (SOCKS4, SOCKS5, HTTP, HTTPS). Supported formats:
     /// - type://address:port
     /// - type://username:password@address:port
     ///
@@ -96,11 +98,7 @@ impl ViaVersionPlugin {
     ///     ClientBuilder::new()
     ///         .set_handler(handle)
     ///         .add_plugins(
-    ///             ViaVersionPlugin::start_with_proxy(
-    ///                 "1.21.5",
-    ///                 "socks5://10.124.1.186:1080",
-    ///             )
-    ///             .await,
+    ///             ViaVersionPlugin::start_with_proxy("1.21.5", "socks5://10.124.1.186:1080").await,
     ///         )
     ///         .start(account, "6.tcp.ngrok.io:14910")
     ///         .await;
