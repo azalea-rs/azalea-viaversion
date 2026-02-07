@@ -1,4 +1,11 @@
-use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
+mod opts;
+
+use std::{
+    io::Cursor,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 
 use anyhow::{Context, Result};
 use azalea::{
@@ -32,6 +39,8 @@ use tokio::{
 };
 use tracing::{error, trace, warn};
 
+pub use crate::opts::ViaVersionOpts;
+
 const JAVA_DOWNLOAD_URL: &str = "https://adoptium.net/installation";
 const VIA_OAUTH_VERSION: Version = Version::new(1, 0, 2);
 // https://github.com/ViaVersion/ViaProxy/releases
@@ -42,6 +51,9 @@ pub struct ViaVersionPlugin {
     bind_addr: SocketAddr,
     mc_version: String,
     proxy: Option<String>,
+    viaproxy_args: Vec<String>,
+    viaproxy_jar_path: PathBuf,
+    viaproxy_data_path: PathBuf,
 }
 
 impl Plugin for ViaVersionPlugin {
@@ -66,31 +78,20 @@ impl ViaVersionPlugin {
     ///
     /// # Panics
     ///
-    /// Will panic if Java fails to parse, files fail to download, or ViaProxy
-    /// fails to start.
+    /// Will panic if Java fails to parse, files fail to download, or if
+    /// ViaProxy fails to start.
     pub async fn start(mc_version: impl ToString) -> Self {
-        let bind_addr = try_find_free_addr().await.expect("Failed to bind");
-        let mc_version = mc_version.to_string();
-
-        let plugin = Self {
-            bind_addr,
-            mc_version,
-            proxy: None,
-        };
-        plugin.start_with_self().await
+        Self::start_with_opts(mc_version, ViaVersionOpts::new()).await
     }
 
-    /// Same as [`Self::start`], but allows you to pass any proxy that ViaProxy
-    /// supports (SOCKS4, SOCKS5, HTTP, HTTPS). Supported formats:
-    /// - type://address:port
-    /// - type://username:password@address:port
+    /// Same as [`Self::start`], but allows you to pass extra options, including
+    /// any proxy that ViaProxy supports.
     ///
-    /// This is necessary if you want to use Azalea with a proxy and ViaVersion
-    /// at the same time. This is incompatible with `JoinOpts::proxy`.
+    /// See [`ViaVersionOpts`] for more details.
     ///
     /// ```no_run
     /// # use azalea::{prelude::*, protocol::connect::Proxy};
-    /// # use azalea_viaversion::ViaVersionPlugin;
+    /// # use azalea_viaversion::{ViaVersionPlugin, ViaVersionOpts};
     /// #[tokio::main]
     /// async fn main() {
     ///     let account = Account::offline("bot");
@@ -98,59 +99,66 @@ impl ViaVersionPlugin {
     ///     ClientBuilder::new()
     ///         .set_handler(handle)
     ///         .add_plugins(
-    ///             ViaVersionPlugin::start_with_proxy("1.21.5", "socks5://10.124.1.186:1080").await,
+    ///             ViaVersionPlugin::start_with_opts(
+    ///                 "1.21.5",
+    ///                 ViaVersionOpts::new().proxy("socks5://10.124.1.186:1080"),
+    ///             )
+    ///             .await,
     ///         )
     ///         .start(account, "6.tcp.ngrok.io:14910")
     ///         .await;
     /// }
     /// # async fn handle(mut bot: Client, event: Event, state: azalea::NoState) { }
     /// ```
-    pub async fn start_with_proxy(mc_version: impl ToString, proxy: &str) -> Self {
-        let bind_addr = try_find_free_addr().await.expect("Failed to bind");
+    ///
+    /// # Panics
+    ///
+    /// Will panic if Java fails to parse, files fail to download, or ViaProxy
+    /// fails to start.
+    pub async fn start_with_opts(mc_version: impl ToString, opts: ViaVersionOpts) -> Self {
         let mc_version = mc_version.to_string();
 
-        let plugin = Self {
-            bind_addr,
-            mc_version,
-            proxy: Some(proxy.to_string()),
+        let bind_addr = match opts.bind_addr {
+            Some(a) => a,
+            None => try_find_free_addr().await.expect("Failed to bind"),
         };
-        plugin.start_with_self().await
-    }
 
-    async fn start_with_self(self) -> Self {
         let Some(java_version) = try_find_java_version().await.expect("Failed to parse") else {
             panic!(
                 "Java installation not found! Please download Java from {JAVA_DOWNLOAD_URL} or use your system's package manager."
             );
         };
 
-        let mc_path = minecraft_folder_path::minecraft_dir().expect("Unsupported Platform");
+        let viaproxy_data_path = opts
+            .viaproxy_data_path
+            .unwrap_or_else(|| default_viaproxy_path());
+        let viaproxy_jar_path = download_viaproxy(&java_version, &viaproxy_data_path).await;
 
-        #[rustfmt::skip]
-        let via_proxy_ext = if java_version.major < 17 { "+java8.jar" } else { ".jar" };
-        let via_proxy_name = format!("ViaProxy-{VIA_PROXY_VERSION}{via_proxy_ext}");
-        let via_proxy_path = mc_path.join("azalea-viaversion");
-        let via_proxy_url = format!(
-            "https://github.com/ViaVersion/ViaProxy/releases/download/v{VIA_PROXY_VERSION}/{via_proxy_name}"
-        );
-        try_download_file(via_proxy_url, &via_proxy_path, &via_proxy_name)
-            .await
-            .expect("Failed to download ViaProxy");
+        Self {
+            bind_addr,
+            mc_version,
+            proxy: opts.proxy,
+            viaproxy_args: opts.viaproxy_args,
+            viaproxy_jar_path,
+            viaproxy_data_path,
+        }
+        .start_with_self()
+        .await
+    }
 
-        let via_oauth_name = format!("ViaProxyOpenAuthMod-{VIA_OAUTH_VERSION}.jar");
-        let via_oauth_path = via_proxy_path.join("plugins");
-        let via_oauth_url = format!(
-            "https://github.com/ViaVersionAddons/ViaProxyOpenAuthMod/releases/download/v{VIA_OAUTH_VERSION}/{via_oauth_name}"
-        );
-        try_download_file(via_oauth_url, &via_oauth_path, &via_oauth_name)
-            .await
-            .expect("Failed to download ViaProxyOpenAuthMod");
+    #[deprecated = "replaced with `ViaVersionPlugin::start_with_opts`."]
+    #[doc(hidden)]
+    pub async fn start_with_proxy(mc_version: impl ToString, proxy: &str) -> Self {
+        Self::start_with_opts(mc_version, ViaVersionOpts::new().proxy(proxy)).await
+    }
 
+    async fn start_with_self(self) -> Self {
         let mut command = Command::new("java");
         command
-            /* Java Args */
-            .args(["-jar", &via_proxy_name])
-            /* ViaProxy Args */
+            // java args
+            .arg("-jar")
+            .arg(&self.viaproxy_jar_path)
+            // viaproxy args
             .arg("cli")
             .args(["--auth-method", "OPENAUTHMOD"])
             .args(["--bind-address", &self.bind_addr.to_string()])
@@ -163,8 +171,12 @@ impl ViaVersionPlugin {
             command.args(["--backend-proxy-url", proxy]);
         }
 
+        for extra_arg in &self.viaproxy_args {
+            command.arg(extra_arg);
+        }
+
         let mut child = command
-            .current_dir(via_proxy_path)
+            .current_dir(&self.viaproxy_data_path)
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to spawn");
@@ -178,6 +190,10 @@ impl ViaVersionPlugin {
             loop {
                 line.clear();
                 reader.read_line(&mut line).await.expect("Failed to read");
+                if line.is_empty() {
+                    warn!("ViaProxy closed. Check trace logs for more info.");
+                    break;
+                }
 
                 let line = line.trim();
                 // strip ansi escape codes
@@ -206,7 +222,7 @@ impl ViaVersionPlugin {
         let ServerAddr { host, port } = server;
 
         // sadly, the first part of the resolved address is unused as viaproxy will
-        // resolve it on its own more info: https://github.com/ViaVersion/ViaProxy/issues/338
+        // resolve it on its own. more info: https://github.com/ViaVersion/ViaProxy/issues/338
         let data_after_null_byte = host.split_once('\x07').map(|(_, data)| data);
 
         let mut connection_host = format!(
@@ -226,7 +242,7 @@ impl ViaVersionPlugin {
             socket: plugin.bind_addr,
         };
 
-        /* Must wait to be written until after reading above */
+        // Must wait to be written until after reading above
     }
 
     pub fn handle_oauth(
@@ -331,6 +347,38 @@ impl ViaVersionPlugin {
             }
         }
     }
+}
+
+fn default_viaproxy_path() -> PathBuf {
+    let mc_path = minecraft_folder_path::minecraft_dir().expect("Unsupported Platform");
+    mc_path.join("azalea-viaversion")
+}
+
+async fn download_viaproxy(java_version: &Version, viaproxy_path: &PathBuf) -> PathBuf {
+    let via_proxy_ext = if java_version.major < 17 {
+        "+java8.jar"
+    } else {
+        ".jar"
+    };
+
+    let viaproxy_name = format!("ViaProxy-{VIA_PROXY_VERSION}{via_proxy_ext}");
+    let via_proxy_url = format!(
+        "https://github.com/ViaVersion/ViaProxy/releases/download/v{VIA_PROXY_VERSION}/{viaproxy_name}"
+    );
+    try_download_file(via_proxy_url, &viaproxy_path, &viaproxy_name)
+        .await
+        .expect("Failed to download ViaProxy");
+
+    let via_oauth_name = format!("ViaProxyOpenAuthMod-{VIA_OAUTH_VERSION}.jar");
+    let via_oauth_path = viaproxy_path.join("plugins");
+    let via_oauth_url = format!(
+        "https://github.com/ViaVersionAddons/ViaProxyOpenAuthMod/releases/download/v{VIA_OAUTH_VERSION}/{via_oauth_name}"
+    );
+    try_download_file(via_oauth_url, &via_oauth_path, &via_oauth_name)
+        .await
+        .expect("Failed to download ViaProxyOpenAuthMod");
+
+    viaproxy_path.join(viaproxy_name)
 }
 
 #[derive(Component)]
