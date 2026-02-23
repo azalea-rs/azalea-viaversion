@@ -1,4 +1,4 @@
-use std::{io::Cursor, net::SocketAddr, path::Path, process::Stdio};
+use std::{collections::HashSet, io::Cursor, net::SocketAddr, path::Path, process::Stdio};
 
 use anyhow::{Context, Result};
 use azalea::{
@@ -9,6 +9,7 @@ use azalea::{
     },
     bevy_tasks::{IoTaskPool, Task, futures_lite::future},
     buf::AzBuf,
+    disconnect::{DisconnectEvent, IsConnectionAlive},
     ecs::prelude::*,
     join::StartJoinServerEvent,
     packet::login::{ReceiveCustomQueryEvent, SendLoginPacketEvent},
@@ -56,6 +57,8 @@ impl Plugin for ViaVersionPlugin {
                     Self::warn_about_proxy
                         .after(azalea::auto_reconnect::rejoin_after_delay)
                         .before(azalea::join::handle_start_join_server_event),
+                    Self::handle_disconnect
+                        .after(azalea::disconnect::remove_components_from_disconnected_players),
                 ),
             );
     }
@@ -232,8 +235,10 @@ impl ViaVersionPlugin {
     pub fn handle_oauth(
         mut commands: Commands,
         mut events: MessageMutator<ReceiveCustomQueryEvent>,
-        mut query: Query<&Account>,
+        mut query: Query<(&Account, &IsConnectionAlive, Option<&ViaVersionAuthed>)>,
     ) {
+        let mut authed_entities = HashSet::new();
+
         for event in events.read() {
             if event.packet.identifier.to_string().as_str() != "oam:join" {
                 continue;
@@ -241,13 +246,30 @@ impl ViaVersionPlugin {
 
             let mut buf = Cursor::new(&*event.packet.data);
             let Ok(hash) = String::azalea_read(&mut buf) else {
-                error!("Failed to read server id hash from oam:join packet");
+                error!("Failed to read server id hash from the OpenAuthMod packet");
                 continue;
             };
 
-            let Ok(account) = query.get_mut(event.entity) else {
+            let Ok((account, is_connection_alive, viaversion_authed)) = query.get_mut(event.entity)
+            else {
                 continue;
             };
+
+            // extra check to make sure that we don't handle the packets after disconnect
+            if !**is_connection_alive {
+                warn!("Got an OpenAuthMod packet while the connection wasn't alive");
+                continue;
+            }
+
+            // we use authed_entities in case we get two packets in the same Update
+            if viaversion_authed.is_some() || authed_entities.contains(&event.entity) {
+                // allowing the second packet could let servers to impersonate us, so preventing
+                // that is important
+                warn!("The server sent us a second OpenAuthMod packet.");
+                continue;
+            }
+            commands.entity(event.entity).insert(ViaVersionAuthed);
+            authed_entities.insert(event.entity);
 
             // this makes it so azalea doesn't reply to the query so we can handle it
             // ourselves
@@ -331,7 +353,18 @@ impl ViaVersionPlugin {
             }
         }
     }
+
+    fn handle_disconnect(mut commands: Commands, mut messages: MessageReader<DisconnectEvent>) {
+        for message in messages.read() {
+            commands.entity(message.entity).remove::<ViaVersionAuthed>();
+        }
+    }
 }
+
+/// A marker struct that indicates that the client has authenticated with
+/// OpenAuthMod.
+#[derive(Component)]
+pub struct ViaVersionAuthed;
 
 #[derive(Component)]
 pub struct OpenAuthModJoinTask(Task<Option<ServerboundCustomQueryAnswer>>);
