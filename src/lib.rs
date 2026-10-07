@@ -168,6 +168,10 @@ impl ViaVersionPlugin {
 
         let mut child = command
             .current_dir(via_proxy_path)
+            // ViaProxy's CLI reader grabs the parent console when stdin is
+            // inherited and eats its key events; with stdin detached it
+            // prints "Console input is not available" and stays out of the way.
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to spawn");
